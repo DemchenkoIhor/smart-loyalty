@@ -164,6 +164,7 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           created_at: string | null
+          display_name: string | null
           id: string
           is_active: boolean | null
           updated_at: string | null
@@ -173,6 +174,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
+          display_name?: string | null
           id?: string
           is_active?: boolean | null
           updated_at?: string | null
@@ -182,6 +184,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
+          display_name?: string | null
           id?: string
           is_active?: boolean | null
           updated_at?: string | null
@@ -365,6 +368,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_employee_busy_slots: {
+        Args: { day: string; emp_id: string }
+        Returns: {
+          end_at: string
+          start_at: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
