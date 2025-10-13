@@ -14,7 +14,8 @@ interface Employee {
   id: string;
   user_id: string;
   bio: string | null;
-  full_name?: string;
+  display_name: string | null;
+  avatar_url: string | null;
 }
 
 interface Service {
@@ -46,6 +47,8 @@ const Booking = () => {
   const [clientEmail, setClientEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [busySlots, setBusySlots] = useState<{ start_at: string; end_at: string }[]>([]);
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   useEffect(() => {
     loadEmployees();
   }, []);
@@ -59,12 +62,7 @@ const Booking = () => {
   const loadEmployees = async () => {
     const { data, error } = await supabase
       .from("employees")
-      .select(`
-        id, 
-        user_id, 
-        bio,
-        profiles!employees_user_id_fkey(full_name)
-      `)
+      .select("id, user_id, bio, display_name, avatar_url")
       .eq("is_active", true);
 
     if (error) {
@@ -73,15 +71,15 @@ const Booking = () => {
       return;
     }
 
-    // Трансформуємо дані для спрощення доступу
-    const transformedData = (data || []).map(emp => ({
-      id: emp.id,
-      user_id: emp.user_id,
-      bio: emp.bio,
-      full_name: emp.profiles?.full_name || "Майстер"
-    }));
-
-    setEmployees(transformedData);
+    setEmployees(
+      (data || []).map((e) => ({
+        id: e.id,
+        user_id: e.user_id,
+        bio: e.bio,
+        display_name: e.display_name ?? "Майстер",
+        avatar_url: e.avatar_url ?? null,
+      }))
+    );
   };
 
   const loadEmployeeServices = async (employeeId: string) => {
@@ -100,7 +98,7 @@ const Booking = () => {
   };
 
   const generateTimeSlots = () => {
-    const slots = [];
+    const slots: string[] = [];
     for (let hour = 9; hour <= 19; hour++) {
       for (let minute = 0; minute < 60; minute += 30) {
         const time = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
@@ -110,6 +108,55 @@ const Booking = () => {
     return slots;
   };
 
+  const overlaps = (startA: Date, endA: Date, startB: Date, endB: Date) => {
+    return !(endA <= startB || startA >= endB);
+  };
+
+  const computeAvailableTimes = (dayStr: string, durationMinutes: number, busy: { start_at: string; end_at: string }[]) => {
+    const all = generateTimeSlots();
+    const available: string[] = [];
+    for (const t of all) {
+      const start = new Date(`${dayStr}T${t}:00`);
+      const end = new Date(start.getTime() + durationMinutes * 60000);
+      let conflict = false;
+      for (const b of busy) {
+        const bStart = new Date(b.start_at);
+        const bEnd = new Date(b.end_at);
+        if (overlaps(start, end, bStart, bEnd)) {
+          conflict = true;
+          break;
+        }
+      }
+      if (!conflict) available.push(t);
+    }
+    return available;
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      if (!selectedEmployee || !selectedDate || !selectedService) {
+        setAvailableTimes([]);
+        setBusySlots([]);
+        return;
+      }
+      try {
+        const { data: busy, error } = await supabase.rpc("get_employee_busy_slots", {
+          emp_id: selectedEmployee,
+          day: selectedDate,
+        });
+        if (error) throw error;
+        setBusySlots(busy || []);
+        const svc = employeeServices.find((es) => es.id === selectedService);
+        const duration = svc?.duration_minutes ?? 30;
+        setAvailableTimes(computeAvailableTimes(selectedDate, duration, busy || []));
+      } catch (e) {
+        console.error("Error loading busy slots", e);
+        setAvailableTimes(generateTimeSlots());
+      }
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEmployee, selectedDate, selectedService, employeeServices]);
   const handleSubmit = async () => {
     if (!selectedEmployee || !selectedService || !selectedDate || !selectedTime || !clientName || !clientPhone) {
       toast.error("Заповніть всі обов'язкові поля");
@@ -168,7 +215,12 @@ const Booking = () => {
       toast.success("Запис успішно створено!");
       navigate("/");
     } catch (error: any) {
-      toast.error(error.message || "Помилка створення запису");
+      const msg = (error?.message || "").toString();
+      if (msg.includes("APPOINTMENT_TIME_CONFLICT")) {
+        toast.error("Цей час уже зайнятий. Оберіть інший слот.");
+      } else {
+        toast.error(error.message || "Помилка створення запису");
+      }
     } finally {
       setLoading(false);
     }
@@ -215,10 +267,10 @@ const Booking = () => {
                       <CardContent className="p-4">
                         <div className="flex items-start gap-4">
                           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-white font-bold text-xl">
-                            {employee.full_name?.charAt(0) || "M"}
+                            {employee.display_name?.charAt(0) || "M"}
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-semibold text-lg mb-1">{employee.full_name}</h4>
+                            <h4 className="font-semibold text-lg mb-1">{employee.display_name}</h4>
                             {employee.bio && (
                               <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                                 {employee.bio}
@@ -302,18 +354,22 @@ const Booking = () => {
                 {selectedDate && (
                   <div className="space-y-2">
                     <Label className="text-lg">Оберіть час</Label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {generateTimeSlots().map((time) => (
-                        <Button
-                          key={time}
-                          variant={selectedTime === time ? "default" : "outline"}
-                          className={selectedTime === time ? "shadow-glow" : ""}
-                          onClick={() => setSelectedTime(time)}
-                        >
-                          {time}
-                        </Button>
-                      ))}
-                    </div>
+                    {availableTimes.length > 0 ? (
+                      <div className="grid grid-cols-4 gap-2">
+                        {availableTimes.map((time) => (
+                          <Button
+                            key={time}
+                            variant={selectedTime === time ? "default" : "outline"}
+                            className={selectedTime === time ? "shadow-glow" : ""}
+                            onClick={() => setSelectedTime(time)}
+                          >
+                            {time}
+                          </Button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Немає доступних часових слотів для цієї дати.</p>
+                    )}
                   </div>
                 )}
 
@@ -331,7 +387,7 @@ const Booking = () => {
               <div className="space-y-4">
                 <div className="bg-secondary/50 p-4 rounded-lg space-y-2">
                   <h4 className="font-semibold">Ваш запис:</h4>
-                  <p className="text-sm">Майстер: {selectedEmployeeData?.full_name}</p>
+                  <p className="text-sm">Майстер: {selectedEmployeeData?.display_name}</p>
                   <p className="text-sm">Послуга: {selectedServiceData?.services.name}</p>
                   <p className="text-sm">
                     Дата: {format(new Date(selectedDate), "d MMMM yyyy", { locale: uk })}

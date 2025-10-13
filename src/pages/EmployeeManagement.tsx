@@ -32,6 +32,8 @@ interface Employee {
   bio: string | null;
   is_active: boolean;
   user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
   profiles: { full_name: string; email: string | null } | null;
   employee_services: EmployeeService[];
 }
@@ -316,7 +318,7 @@ const EmployeeManagement = () => {
                         <User className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <CardTitle>{employee.profiles?.full_name || "Без імені"}</CardTitle>
+                        <CardTitle>{employee.display_name || employee.profiles?.full_name || "Без імені"}</CardTitle>
                         <CardDescription>{employee.profiles?.email}</CardDescription>
                       </div>
                     </div>
