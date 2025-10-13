@@ -69,7 +69,9 @@ const Booking = () => {
       return;
     }
 
-    setEmployees(data || []);
+    // Фільтруємо працівників, які мають профіль з ім'ям
+    const validEmployees = (data || []).filter(emp => emp.profiles && emp.profiles.full_name);
+    setEmployees(validEmployees);
   };
 
   const loadEmployeeServices = async (employeeId: string) => {
@@ -205,7 +207,7 @@ const Booking = () => {
                           <User className="h-6 w-6 text-primary" />
                         </div>
                         <div>
-                          <h4 className="font-semibold">{employee.profiles.full_name}</h4>
+                          <h4 className="font-semibold">{employee.profiles?.full_name || "Майстер"}</h4>
                           {employee.bio && <p className="text-sm text-muted-foreground">{employee.bio}</p>}
                         </div>
                       </CardContent>
