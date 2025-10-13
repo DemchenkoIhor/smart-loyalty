@@ -212,13 +212,23 @@ const Booking = () => {
                         setSelectedService("");
                       }}
                     >
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                          <User className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold">{employee.full_name}</h4>
-                          {employee.bio && <p className="text-sm text-muted-foreground">{employee.bio}</p>}
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-white font-bold text-xl">
+                            {employee.full_name?.charAt(0) || "M"}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-lg mb-1">{employee.full_name}</h4>
+                            {employee.bio && (
+                              <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                                {employee.bio}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 text-xs text-primary">
+                              <User className="h-3 w-3" />
+                              Професійний майстер
+                            </div>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>

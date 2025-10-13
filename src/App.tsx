@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
 import Clients from "./pages/Clients";
 import Employees from "./pages/Employees";
+import EmployeeManagement from "./pages/EmployeeManagement";
+import Communications from "./pages/Communications";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +31,8 @@ const App = () => (
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/employees" element={<Employees />} />
+          <Route path="/employees/manage" element={<EmployeeManagement />} />
+          <Route path="/communications" element={<Communications />} />
           <Route path="/analytics" element={<Analytics />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

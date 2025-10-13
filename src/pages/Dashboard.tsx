@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Calendar, Users, TrendingUp, LogOut } from "lucide-react";
+import { Calendar, Users, TrendingUp, LogOut, MessageSquare } from "lucide-react";
 
 interface UserRole {
   role: string;
@@ -15,10 +15,50 @@ const Dashboard = () => {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("");
+  const [stats, setStats] = useState({
+    todayAppointments: 0,
+    totalClients: 0,
+    repeatRate: 0
+  });
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (userRole) {
+      loadStats();
+    }
+  }, [userRole]);
+
+  const loadStats = async () => {
+    try {
+      // Get total clients
+      const { count: clientsCount } = await supabase
+        .from("clients")
+        .select("*", { count: "exact", head: true });
+
+      // Get today's appointments
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const { count: todayCount } = await supabase
+        .from("appointments")
+        .select("*", { count: "exact", head: true })
+        .gte("scheduled_at", today.toISOString())
+        .lt("scheduled_at", tomorrow.toISOString());
+
+      setStats({
+        todayAppointments: todayCount || 0,
+        totalClients: clientsCount || 0,
+        repeatRate: 0 // TODO: Calculate repeat rate
+      });
+    } catch (error) {
+      console.error("Error loading stats:", error);
+    }
+  };
 
   const checkAuth = async () => {
     try {
@@ -105,19 +145,19 @@ const Dashboard = () => {
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <StatCard
             title="Записи сьогодні"
-            value="0"
+            value={stats.todayAppointments.toString()}
             icon={<Calendar className="h-8 w-8" />}
             description="Нових записів"
           />
           <StatCard
             title="Всього клієнтів"
-            value="0"
+            value={stats.totalClients.toString()}
             icon={<Users className="h-8 w-8" />}
             description="У базі даних"
           />
           <StatCard
             title="Конверсія"
-            value="0%"
+            value={`${stats.repeatRate}%`}
             icon={<TrendingUp className="h-8 w-8" />}
             description="Повторних візитів"
           />
@@ -151,10 +191,18 @@ const Dashboard = () => {
                 <Button
                   variant="outline"
                   className="h-20 text-lg hover:shadow-medium transition-all"
-                  onClick={() => navigate("/employees")}
+                  onClick={() => navigate("/employees/manage")}
                 >
                   <Users className="mr-2 h-6 w-6" />
                   Працівники
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-20 text-lg hover:shadow-medium transition-all"
+                  onClick={() => navigate("/communications")}
+                >
+                  <MessageSquare className="mr-2 h-6 w-6" />
+                  Комунікації
                 </Button>
                 <Button
                   variant="outline"
