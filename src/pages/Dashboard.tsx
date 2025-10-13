@@ -151,6 +151,14 @@ const Dashboard = () => {
                 <Button
                   variant="outline"
                   className="h-20 text-lg hover:shadow-medium transition-all"
+                  onClick={() => navigate("/employees")}
+                >
+                  <Users className="mr-2 h-6 w-6" />
+                  Працівники
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-20 text-lg hover:shadow-medium transition-all"
                   onClick={() => navigate("/analytics")}
                 >
                   <TrendingUp className="mr-2 h-6 w-6" />
