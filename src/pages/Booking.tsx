@@ -14,9 +14,7 @@ interface Employee {
   id: string;
   user_id: string;
   bio: string | null;
-  profiles: {
-    full_name: string;
-  };
+  full_name?: string;
 }
 
 interface Service {
@@ -61,17 +59,29 @@ const Booking = () => {
   const loadEmployees = async () => {
     const { data, error } = await supabase
       .from("employees")
-      .select("id, user_id, bio, profiles(full_name)")
+      .select(`
+        id, 
+        user_id, 
+        bio,
+        profiles!employees_user_id_fkey(full_name)
+      `)
       .eq("is_active", true);
 
     if (error) {
+      console.error("Error loading employees:", error);
       toast.error("Помилка завантаження працівників");
       return;
     }
 
-    // Фільтруємо працівників, які мають профіль з ім'ям
-    const validEmployees = (data || []).filter(emp => emp.profiles && emp.profiles.full_name);
-    setEmployees(validEmployees);
+    // Трансформуємо дані для спрощення доступу
+    const transformedData = (data || []).map(emp => ({
+      id: emp.id,
+      user_id: emp.user_id,
+      bio: emp.bio,
+      full_name: emp.profiles?.full_name || "Майстер"
+    }));
+
+    setEmployees(transformedData);
   };
 
   const loadEmployeeServices = async (employeeId: string) => {
@@ -207,7 +217,7 @@ const Booking = () => {
                           <User className="h-6 w-6 text-primary" />
                         </div>
                         <div>
-                          <h4 className="font-semibold">{employee.profiles?.full_name || "Майстер"}</h4>
+                          <h4 className="font-semibold">{employee.full_name}</h4>
                           {employee.bio && <p className="text-sm text-muted-foreground">{employee.bio}</p>}
                         </div>
                       </CardContent>
@@ -311,7 +321,7 @@ const Booking = () => {
               <div className="space-y-4">
                 <div className="bg-secondary/50 p-4 rounded-lg space-y-2">
                   <h4 className="font-semibold">Ваш запис:</h4>
-                  <p className="text-sm">Майстер: {selectedEmployeeData?.profiles.full_name}</p>
+                  <p className="text-sm">Майстер: {selectedEmployeeData?.full_name}</p>
                   <p className="text-sm">Послуга: {selectedServiceData?.services.name}</p>
                   <p className="text-sm">
                     Дата: {format(new Date(selectedDate), "d MMMM yyyy", { locale: uk })}
