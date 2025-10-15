@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Calendar as CalendarIcon, ArrowLeft, Plus, Edit, X, Check } from "lucide-react";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { ArrowLeft, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, parseISO } from "date-fns";
 import { uk } from "date-fns/locale";
 
 interface Appointment {
@@ -24,26 +26,60 @@ interface Appointment {
   admin_notes?: string;
   clients: { full_name: string; phone: string };
   services: { name: string };
-  employees: { profiles: { full_name: string } };
+  employees: { display_name?: string; profiles: { full_name: string } };
+}
+
+interface Employee {
+  id: string;
+  display_name?: string;
+  profiles: { full_name: string };
+}
+
+interface Client {
+  id: string;
+  full_name: string;
+  phone: string;
+}
+
+interface Service {
+  id: string;
+  name: string;
 }
 
 const Calendar = () => {
   const navigate = useNavigate();
-  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [currentWeek, setCurrentWeek] = useState<Date>(startOfWeek(new Date(), { locale: uk }));
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>("");
   const [userId, setUserId] = useState<string>("");
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newAppointment, setNewAppointment] = useState({
+    employee_id: "",
+    client_id: "",
+    service_id: "",
+    scheduled_date: "",
+    scheduled_time: "",
+    admin_notes: "",
+  });
 
   useEffect(() => {
     checkAuthAndLoadData();
   }, []);
 
   useEffect(() => {
-    if (date && userId) {
+    if (userId) {
       loadAppointments();
+      if (userRole === "admin") {
+        loadEmployees();
+        loadClients();
+        loadServices();
+      }
     }
-  }, [date, userId]);
+  }, [currentWeek, userId, userRole]);
 
   const checkAuthAndLoadData = async () => {
     try {
@@ -71,15 +107,10 @@ const Calendar = () => {
   };
 
   const loadAppointments = async () => {
-    if (!date) return;
-    
     setLoading(true);
     try {
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      const weekStart = currentWeek;
+      const weekEnd = addDays(currentWeek, 7);
 
       let query = supabase
         .from("appointments")
@@ -87,13 +118,12 @@ const Calendar = () => {
           *,
           clients(full_name, phone),
           services(name),
-          employees(profiles(full_name))
+          employees(display_name, profiles(full_name))
         `)
-        .gte("scheduled_at", startOfDay.toISOString())
-        .lte("scheduled_at", endOfDay.toISOString())
+        .gte("scheduled_at", weekStart.toISOString())
+        .lt("scheduled_at", weekEnd.toISOString())
         .order("scheduled_at");
 
-      // Працівник бачить тільки свої записи
       if (userRole === "employee") {
         const { data: empData } = await supabase
           .from("employees")
@@ -107,7 +137,6 @@ const Calendar = () => {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
       setAppointments(data || []);
     } catch (error) {
@@ -115,6 +144,102 @@ const Calendar = () => {
       toast.error("Помилка завантаження записів");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEmployees = async () => {
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, display_name, profiles(full_name)")
+      .eq("is_active", true);
+    if (error) {
+      console.error("Error loading employees:", error);
+    } else {
+      setEmployees(data || []);
+    }
+  };
+
+  const loadClients = async () => {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, full_name, phone");
+    if (error) {
+      console.error("Error loading clients:", error);
+    } else {
+      setClients(data || []);
+    }
+  };
+
+  const loadServices = async () => {
+    const { data, error } = await supabase
+      .from("services")
+      .select("id, name");
+    if (error) {
+      console.error("Error loading services:", error);
+    } else {
+      setServices(data || []);
+    }
+  };
+
+  const createAppointment = async () => {
+    if (!newAppointment.employee_id || !newAppointment.client_id || !newAppointment.service_id || !newAppointment.scheduled_date || !newAppointment.scheduled_time) {
+      toast.error("Заповніть всі обов'язкові поля");
+      return;
+    }
+
+    try {
+      const scheduledAt = new Date(`${newAppointment.scheduled_date}T${newAppointment.scheduled_time}`);
+      
+      const selectedService = services.find(s => s.id === newAppointment.service_id);
+      const { data: empService } = await supabase
+        .from("employee_services")
+        .select("duration_minutes, price")
+        .eq("employee_id", newAppointment.employee_id)
+        .eq("service_id", newAppointment.service_id)
+        .eq("is_active", true)
+        .single();
+
+      if (!empService) {
+        toast.error("Майстер не надає цю послугу");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("appointments")
+        .insert({
+          employee_id: newAppointment.employee_id,
+          client_id: newAppointment.client_id,
+          service_id: newAppointment.service_id,
+          scheduled_at: scheduledAt.toISOString(),
+          duration_minutes: empService.duration_minutes,
+          price: empService.price,
+          admin_notes: newAppointment.admin_notes || null,
+          status: "confirmed",
+        });
+
+      if (error) {
+        if (error.message.includes("APPOINTMENT_TIME_CONFLICT")) {
+          toast.error("Цей час вже зайнятий");
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      toast.success("Запис створено");
+      setIsCreateDialogOpen(false);
+      setNewAppointment({
+        employee_id: "",
+        client_id: "",
+        service_id: "",
+        scheduled_date: "",
+        scheduled_time: "",
+        admin_notes: "",
+      });
+      loadAppointments();
+    } catch (error) {
+      console.error("Error creating appointment:", error);
+      toast.error("Помилка створення запису");
     }
   };
 
@@ -141,151 +266,202 @@ const Calendar = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "completed": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-      case "confirmed": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-      case "cancelled": return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-      default: return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
+      case "completed": return "bg-success/20 text-success-foreground border-success";
+      case "confirmed": return "bg-primary/20 text-primary border-primary";
+      case "cancelled": return "bg-destructive/20 text-destructive-foreground border-destructive";
+      default: return "bg-warning/20 text-warning-foreground border-warning";
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "completed": return "Завершено";
-      case "confirmed": return "Підтверджено";
-      case "cancelled": return "Скасовано";
-      default: return "Очікує";
-    }
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeek, i));
+  const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 - 20:00
+
+  const getAppointmentsForSlot = (day: Date, hour: number) => {
+    return appointments.filter(apt => {
+      const aptDate = parseISO(apt.scheduled_at);
+      return isSameDay(aptDate, day) && aptDate.getHours() === hour;
+    });
   };
 
   return (
     <div className="min-h-screen gradient-subtle">
       <div className="border-b bg-card shadow-soft">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Назад
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">Календар записів</h1>
-              <p className="text-sm text-muted-foreground">
-                {date ? format(date, "d MMMM yyyy", { locale: uk }) : "Оберіть дату"}
-              </p>
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" onClick={() => navigate("/dashboard")}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Назад
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold">Календар записів</h1>
+                <p className="text-sm text-muted-foreground">
+                  {format(currentWeek, "d MMMM", { locale: uk })} - {format(addDays(currentWeek, 6), "d MMMM yyyy", { locale: uk })}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setCurrentWeek(startOfWeek(new Date(), { locale: uk }))}>
+                Сьогодні
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              {userRole === "admin" && (
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Створити запис
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Створити новий запис</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                      <div>
+                        <Label htmlFor="employee">Майстер *</Label>
+                        <Select value={newAppointment.employee_id} onValueChange={(v) => setNewAppointment({...newAppointment, employee_id: v})}>
+                          <SelectTrigger id="employee">
+                            <SelectValue placeholder="Оберіть майстра" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {employees.map(emp => (
+                              <SelectItem key={emp.id} value={emp.id}>
+                                {emp.display_name || emp.profiles?.full_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="client">Клієнт *</Label>
+                        <Select value={newAppointment.client_id} onValueChange={(v) => setNewAppointment({...newAppointment, client_id: v})}>
+                          <SelectTrigger id="client">
+                            <SelectValue placeholder="Оберіть клієнта" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {clients.map(client => (
+                              <SelectItem key={client.id} value={client.id}>
+                                {client.full_name} ({client.phone})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="service">Послуга *</Label>
+                        <Select value={newAppointment.service_id} onValueChange={(v) => setNewAppointment({...newAppointment, service_id: v})}>
+                          <SelectTrigger id="service">
+                            <SelectValue placeholder="Оберіть послугу" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {services.map(service => (
+                              <SelectItem key={service.id} value={service.id}>
+                                {service.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="date">Дата *</Label>
+                          <Input
+                            id="date"
+                            type="date"
+                            value={newAppointment.scheduled_date}
+                            onChange={(e) => setNewAppointment({...newAppointment, scheduled_date: e.target.value})}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="time">Час *</Label>
+                          <Input
+                            id="time"
+                            type="time"
+                            value={newAppointment.scheduled_time}
+                            onChange={(e) => setNewAppointment({...newAppointment, scheduled_time: e.target.value})}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="notes">Нотатки адміна</Label>
+                        <Textarea
+                          id="notes"
+                          value={newAppointment.admin_notes}
+                          onChange={(e) => setNewAppointment({...newAppointment, admin_notes: e.target.value})}
+                          placeholder="Додаткова інформація..."
+                        />
+                      </div>
+                      <Button onClick={createAppointment} className="w-full">
+                        Створити запис
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-1 shadow-medium">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5" />
-                Оберіть дату
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CalendarComponent
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                locale={uk}
-                className="rounded-md border"
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="lg:col-span-2 shadow-medium">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Записи на {date ? format(date, "d MMMM", { locale: uk }) : ""}</CardTitle>
-                  <CardDescription>
-                    Всього записів: {appointments.length}
-                  </CardDescription>
+      <div className="container mx-auto px-4 py-6">
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-2 text-sm text-muted-foreground">Завантаження...</p>
+          </div>
+        ) : (
+          <div className="bg-card rounded-lg shadow-medium overflow-hidden">
+            <div className="grid grid-cols-8 border-b">
+              <div className="border-r p-2 text-sm font-medium text-muted-foreground bg-muted/50"></div>
+              {weekDays.map((day, i) => (
+                <div key={i} className="border-r last:border-r-0 p-2 text-center bg-muted/50">
+                  <div className="text-xs text-muted-foreground">{format(day, "EEE", { locale: uk })}</div>
+                  <div className="text-sm font-medium">{format(day, "d MMM", { locale: uk })}</div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                  <p className="mt-2 text-sm text-muted-foreground">Завантаження...</p>
-                </div>
-              ) : appointments.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CalendarIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Немає записів на цю дату</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {appointments.map((apt) => (
-                    <Card key={apt.id} className="shadow-soft">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold">
-                                {format(new Date(apt.scheduled_at), "HH:mm")}
-                              </span>
-                              <span className={`px-2 py-1 rounded text-xs ${getStatusColor(apt.status)}`}>
-                                {getStatusText(apt.status)}
-                              </span>
+              ))}
+            </div>
+            
+            <div className="max-h-[600px] overflow-auto">
+              {hours.map(hour => (
+                <div key={hour} className="grid grid-cols-8 border-b last:border-b-0 min-h-[80px]">
+                  <div className="border-r p-2 text-sm text-muted-foreground bg-muted/20 flex items-start justify-center sticky left-0">
+                    {`${hour}:00`}
+                  </div>
+                  {weekDays.map((day, dayIndex) => {
+                    const slotsAppts = getAppointmentsForSlot(day, hour);
+                    return (
+                      <div key={dayIndex} className="border-r last:border-r-0 p-1 hover:bg-accent/5 transition-colors">
+                        <div className="space-y-1">
+                          {slotsAppts.map(apt => (
+                            <div
+                              key={apt.id}
+                              className={`text-xs p-2 rounded border cursor-pointer hover:shadow-soft transition-shadow ${getStatusColor(apt.status)}`}
+                              onClick={() => {
+                                toast.info(`${apt.clients.full_name} - ${apt.services.name}`, {
+                                  description: `${format(parseISO(apt.scheduled_at), "HH:mm")} (${apt.duration_minutes} хв) - ${apt.employees.display_name || apt.employees.profiles?.full_name}`,
+                                });
+                              }}
+                            >
+                              <div className="font-medium truncate">{apt.clients.full_name}</div>
+                              <div className="truncate text-[10px] opacity-75">{apt.services.name}</div>
+                              <div className="text-[10px] opacity-75">{apt.duration_minutes} хв</div>
                             </div>
-                            <p className="font-medium">{apt.clients.full_name}</p>
-                            <p className="text-sm text-muted-foreground">{apt.clients.phone}</p>
-                            <p className="text-sm mt-1">{apt.services.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {apt.duration_minutes} хв • {apt.price} грн
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              Майстер: {apt.employees.profiles?.full_name}
-                            </p>
-                            {apt.admin_notes && (
-                              <p className="text-sm mt-2 text-blue-600 dark:text-blue-400">
-                                📝 {apt.admin_notes}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            {apt.status === "pending" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateAppointmentStatus(apt.id, "confirmed")}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {apt.status === "confirmed" && userRole === "admin" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateAppointmentStatus(apt.id, "completed")}
-                              >
-                                Завершити
-                              </Button>
-                            )}
-                            {(apt.status === "pending" || apt.status === "confirmed") && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateAppointmentStatus(apt.id, "cancelled")}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
+                          ))}
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
