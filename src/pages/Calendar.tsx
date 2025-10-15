@@ -57,6 +57,13 @@ const Calendar = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [clientPhone, setClientPhone] = useState("");
+  const [isNewClient, setIsNewClient] = useState(false);
+  const [newClientData, setNewClientData] = useState({ full_name: "", email: "" });
+  const [filteredServices, setFilteredServices] = useState<Service[]>([]);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [clientNotes, setClientNotes] = useState("");
   const [newAppointment, setNewAppointment] = useState({
     employee_id: "",
     client_id: "",
@@ -181,16 +188,93 @@ const Calendar = () => {
     }
   };
 
+  const searchClientByPhone = async (phone: string) => {
+    if (!phone || phone.length < 10) return;
+    
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, full_name, phone, email, notes")
+      .eq("phone", phone)
+      .maybeSingle();
+
+    if (data) {
+      setNewAppointment({ ...newAppointment, client_id: data.id });
+      setIsNewClient(false);
+      setClientNotes(data.notes || "");
+    } else {
+      setIsNewClient(true);
+      setNewAppointment({ ...newAppointment, client_id: "" });
+      setClientNotes("");
+    }
+  };
+
+  const loadEmployeeServices = async (employeeId: string) => {
+    if (!employeeId) {
+      setFilteredServices([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("employee_services")
+      .select("service_id, services(id, name)")
+      .eq("employee_id", employeeId)
+      .eq("is_active", true);
+
+    if (error) {
+      console.error("Error loading employee services:", error);
+      setFilteredServices([]);
+    } else {
+      const servicesData = data
+        .filter(es => es.services)
+        .map(es => es.services as unknown as Service);
+      setFilteredServices(servicesData);
+    }
+  };
+
   const createAppointment = async () => {
-    if (!newAppointment.employee_id || !newAppointment.client_id || !newAppointment.service_id || !newAppointment.scheduled_date || !newAppointment.scheduled_time) {
+    if (!newAppointment.employee_id || !newAppointment.service_id || !newAppointment.scheduled_date || !newAppointment.scheduled_time) {
       toast.error("Заповніть всі обов'язкові поля");
       return;
     }
 
+    if (!clientPhone) {
+      toast.error("Введіть номер телефону клієнта");
+      return;
+    }
+
     try {
+      let clientId = newAppointment.client_id;
+
+      // Створити нового клієнта якщо потрібно
+      if (isNewClient) {
+        if (!newClientData.full_name) {
+          toast.error("Введіть ім'я клієнта");
+          return;
+        }
+
+        const { data: newClient, error: clientError } = await supabase
+          .from("clients")
+          .insert({
+            full_name: newClientData.full_name,
+            phone: clientPhone,
+            email: newClientData.email || null,
+            notes: clientNotes || null,
+          })
+          .select()
+          .single();
+
+        if (clientError) throw clientError;
+        clientId = newClient.id;
+      } else if (clientNotes) {
+        // Оновити нотатки існуючого клієнта
+        await supabase
+          .from("clients")
+          .update({ notes: clientNotes })
+          .eq("id", clientId);
+      }
+
       const scheduledAt = new Date(`${newAppointment.scheduled_date}T${newAppointment.scheduled_time}`);
       
-      const selectedService = services.find(s => s.id === newAppointment.service_id);
       const { data: empService } = await supabase
         .from("employee_services")
         .select("duration_minutes, price")
@@ -208,7 +292,7 @@ const Calendar = () => {
         .from("appointments")
         .insert({
           employee_id: newAppointment.employee_id,
-          client_id: newAppointment.client_id,
+          client_id: clientId,
           service_id: newAppointment.service_id,
           scheduled_at: scheduledAt.toISOString(),
           duration_minutes: empService.duration_minutes,
@@ -228,6 +312,10 @@ const Calendar = () => {
 
       toast.success("Запис створено");
       setIsCreateDialogOpen(false);
+      setClientPhone("");
+      setIsNewClient(false);
+      setNewClientData({ full_name: "", email: "" });
+      setClientNotes("");
       setNewAppointment({
         employee_id: "",
         client_id: "",
@@ -237,6 +325,7 @@ const Calendar = () => {
         admin_notes: "",
       });
       loadAppointments();
+      loadClients();
     } catch (error) {
       console.error("Error creating appointment:", error);
       toast.error("Помилка створення запису");
@@ -257,10 +346,44 @@ const Calendar = () => {
       if (error) throw error;
       
       toast.success("Статус оновлено");
+      setIsDetailsDialogOpen(false);
+      setSelectedAppointment(null);
       loadAppointments();
     } catch (error) {
       console.error("Error updating status:", error);
       toast.error("Помилка оновлення статусу");
+    }
+  };
+
+  const updateClientNotes = async (clientId: string, notes: string) => {
+    try {
+      const { error } = await supabase
+        .from("clients")
+        .update({ notes })
+        .eq("id", clientId);
+
+      if (error) throw error;
+      toast.success("Коментар збережено");
+      loadAppointments();
+    } catch (error) {
+      console.error("Error updating client notes:", error);
+      toast.error("Помилка збереження коментаря");
+    }
+  };
+
+  const updateEmployeeNotes = async (appointmentId: string, notes: string) => {
+    try {
+      const { error } = await supabase
+        .from("appointments")
+        .update({ employee_notes: notes })
+        .eq("id", appointmentId);
+
+      if (error) throw error;
+      toast.success("Коментар майстра збережено");
+      loadAppointments();
+    } catch (error) {
+      console.error("Error updating employee notes:", error);
+      toast.error("Помилка збереження коментаря");
     }
   };
 
@@ -325,7 +448,13 @@ const Calendar = () => {
                     <div className="space-y-4 pt-4">
                       <div>
                         <Label htmlFor="employee">Майстер *</Label>
-                        <Select value={newAppointment.employee_id} onValueChange={(v) => setNewAppointment({...newAppointment, employee_id: v})}>
+                        <Select 
+                          value={newAppointment.employee_id} 
+                          onValueChange={(v) => {
+                            setNewAppointment({...newAppointment, employee_id: v, service_id: ""});
+                            loadEmployeeServices(v);
+                          }}
+                        >
                           <SelectTrigger id="employee">
                             <SelectValue placeholder="Оберіть майстра" />
                           </SelectTrigger>
@@ -339,28 +468,60 @@ const Calendar = () => {
                         </Select>
                       </div>
                       <div>
-                        <Label htmlFor="client">Клієнт *</Label>
-                        <Select value={newAppointment.client_id} onValueChange={(v) => setNewAppointment({...newAppointment, client_id: v})}>
-                          <SelectTrigger id="client">
-                            <SelectValue placeholder="Оберіть клієнта" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {clients.map(client => (
-                              <SelectItem key={client.id} value={client.id}>
-                                {client.full_name} ({client.phone})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label htmlFor="phone">Телефон клієнта *</Label>
+                        <Input
+                          id="phone"
+                          type="tel"
+                          placeholder="+380..."
+                          value={clientPhone}
+                          onChange={(e) => setClientPhone(e.target.value)}
+                          onBlur={(e) => searchClientByPhone(e.target.value)}
+                        />
+                      </div>
+                      {isNewClient && (
+                        <>
+                          <div>
+                            <Label htmlFor="client_name">Ім'я клієнта *</Label>
+                            <Input
+                              id="client_name"
+                              value={newClientData.full_name}
+                              onChange={(e) => setNewClientData({...newClientData, full_name: e.target.value})}
+                              placeholder="Введіть ім'я"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="client_email">Email (опціонально)</Label>
+                            <Input
+                              id="client_email"
+                              type="email"
+                              value={newClientData.email}
+                              onChange={(e) => setNewClientData({...newClientData, email: e.target.value})}
+                              placeholder="email@example.com"
+                            />
+                          </div>
+                        </>
+                      )}
+                      <div>
+                        <Label htmlFor="client_notes">Коментар про клієнта</Label>
+                        <Textarea
+                          id="client_notes"
+                          value={clientNotes}
+                          onChange={(e) => setClientNotes(e.target.value)}
+                          placeholder="Примітки про клієнта..."
+                        />
                       </div>
                       <div>
                         <Label htmlFor="service">Послуга *</Label>
-                        <Select value={newAppointment.service_id} onValueChange={(v) => setNewAppointment({...newAppointment, service_id: v})}>
+                        <Select 
+                          value={newAppointment.service_id} 
+                          onValueChange={(v) => setNewAppointment({...newAppointment, service_id: v})}
+                          disabled={!newAppointment.employee_id}
+                        >
                           <SelectTrigger id="service">
-                            <SelectValue placeholder="Оберіть послугу" />
+                            <SelectValue placeholder={newAppointment.employee_id ? "Оберіть послугу" : "Спочатку оберіть майстра"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {services.map(service => (
+                            {filteredServices.map(service => (
                               <SelectItem key={service.id} value={service.id}>
                                 {service.name}
                               </SelectItem>
@@ -443,9 +604,8 @@ const Calendar = () => {
                               key={apt.id}
                               className={`text-xs p-2 rounded border cursor-pointer hover:shadow-soft transition-shadow ${getStatusColor(apt.status)}`}
                               onClick={() => {
-                                toast.info(`${apt.clients.full_name} - ${apt.services.name}`, {
-                                  description: `${format(parseISO(apt.scheduled_at), "HH:mm")} (${apt.duration_minutes} хв) - ${apt.employees.display_name || apt.employees.profiles?.full_name}`,
-                                });
+                                setSelectedAppointment(apt);
+                                setIsDetailsDialogOpen(true);
                               }}
                             >
                               <div className="font-medium truncate">{apt.clients.full_name}</div>
@@ -463,6 +623,76 @@ const Calendar = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Деталі запису</DialogTitle>
+          </DialogHeader>
+          {selectedAppointment && (
+            <div className="space-y-4 pt-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Клієнт</p>
+                <p className="font-medium">{selectedAppointment.clients.full_name}</p>
+                <p className="text-sm text-muted-foreground">{selectedAppointment.clients.phone}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Майстер</p>
+                <p className="font-medium">{selectedAppointment.employees.display_name || selectedAppointment.employees.profiles?.full_name}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Послуга</p>
+                <p className="font-medium">{selectedAppointment.services.name}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Час</p>
+                <p className="font-medium">
+                  {format(parseISO(selectedAppointment.scheduled_at), "d MMMM yyyy, HH:mm", { locale: uk })} ({selectedAppointment.duration_minutes} хв)
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Ціна</p>
+                <p className="font-medium">{selectedAppointment.price} грн</p>
+              </div>
+              {selectedAppointment.admin_notes && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Нотатки адміна</p>
+                  <p className="text-sm">{selectedAppointment.admin_notes}</p>
+                </div>
+              )}
+              <div>
+                <Label htmlFor="employee_notes">Коментар майстра</Label>
+                <Textarea
+                  id="employee_notes"
+                  defaultValue={selectedAppointment.employee_notes || ""}
+                  onBlur={(e) => updateEmployeeNotes(selectedAppointment.id, e.target.value)}
+                  placeholder="Додати коментар..."
+                />
+              </div>
+              <div className="flex gap-2">
+                {selectedAppointment.status !== "completed" && (
+                  <Button
+                    onClick={() => updateAppointmentStatus(selectedAppointment.id, "completed")}
+                    className="flex-1"
+                    variant="default"
+                  >
+                    Візит відбувся
+                  </Button>
+                )}
+                {selectedAppointment.status !== "cancelled" && (
+                  <Button
+                    onClick={() => updateAppointmentStatus(selectedAppointment.id, "cancelled")}
+                    className="flex-1"
+                    variant="destructive"
+                  >
+                    Скасувати
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
