@@ -597,22 +597,33 @@ const Calendar = () => {
                   {weekDays.map((day, dayIndex) => {
                     const slotsAppts = getAppointmentsForSlot(day, hour);
                     return (
-                      <div key={dayIndex} className="border-r last:border-r-0 p-1 hover:bg-accent/5 transition-colors">
+                      <div key={dayIndex} className="border-r last:border-r-0 p-1 hover:bg-accent/5 transition-colors relative">
                         <div className="space-y-1">
-                          {slotsAppts.map(apt => (
-                            <div
-                              key={apt.id}
-                              className={`text-xs p-2 rounded border cursor-pointer hover:shadow-soft transition-shadow ${getStatusColor(apt.status)}`}
-                              onClick={() => {
-                                setSelectedAppointment(apt);
-                                setIsDetailsDialogOpen(true);
-                              }}
-                            >
-                              <div className="font-medium truncate">{apt.clients.full_name}</div>
-                              <div className="truncate text-[10px] opacity-75">{apt.services.name}</div>
-                              <div className="text-[10px] opacity-75">{apt.duration_minutes} хв</div>
-                            </div>
-                          ))}
+                          {slotsAppts.map(apt => {
+                            const heightPerMinute = 80 / 60; // 80px per hour / 60 minutes
+                            const cardHeight = apt.duration_minutes * heightPerMinute;
+                            
+                            return (
+                              <div
+                                key={apt.id}
+                                style={{ minHeight: `${cardHeight}px` }}
+                                className={`text-xs p-2 rounded border cursor-pointer hover:shadow-soft transition-shadow ${getStatusColor(apt.status)}`}
+                                onClick={() => {
+                                  setSelectedAppointment(apt);
+                                  setIsDetailsDialogOpen(true);
+                                }}
+                              >
+                                <div className="font-medium truncate">{apt.clients.full_name}</div>
+                                <div className="truncate text-[10px] opacity-75">{apt.services.name}</div>
+                                <div className="text-[10px] opacity-75">{apt.duration_minutes} хв</div>
+                                {apt.admin_notes && (
+                                  <div className="mt-1 pt-1 border-t border-current/20">
+                                    <div className="text-[10px] opacity-90 line-clamp-2">{apt.admin_notes}</div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
