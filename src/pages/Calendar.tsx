@@ -656,7 +656,7 @@ const Calendar = () => {
               </div>
               {selectedAppointment.admin_notes && (
                 <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded">
-                  <p className="text-sm text-muted-foreground mb-1">Коментар до запису (адміністратор)</p>
+                  <p className="text-sm text-muted-foreground mb-1">Коментар для майстра</p>
                   <p className="text-sm">{selectedAppointment.admin_notes}</p>
                 </div>
               )}
@@ -671,12 +671,12 @@ const Calendar = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="employee_notes">Коментар майстра до запису</Label>
+                <Label htmlFor="employee_notes">Коментар майстра</Label>
                 <Textarea
                   id="employee_notes"
                   defaultValue={selectedAppointment.employee_notes || ""}
                   onBlur={(e) => updateEmployeeNotes(selectedAppointment.id, e.target.value)}
-                  placeholder="Додати коментар до цього запису..."
+                  placeholder="Додати коментар..."
                   disabled={userRole !== "admin" && userRole !== "employee"}
                 />
               </div>
