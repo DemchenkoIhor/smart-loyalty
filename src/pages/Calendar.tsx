@@ -379,7 +379,7 @@ const Calendar = () => {
         .eq("id", appointmentId);
 
       if (error) throw error;
-      toast.success("Коментар майстра збережено");
+      toast.success("Коментар для майстра збережено");
       loadAppointments();
     } catch (error) {
       console.error("Error updating employee notes:", error);
@@ -671,7 +671,7 @@ const Calendar = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="employee_notes">Коментар майстра</Label>
+                <Label htmlFor="employee_notes">Коментар для майстра</Label>
                 <Textarea
                   id="employee_notes"
                   defaultValue={selectedAppointment.employee_notes || ""}
