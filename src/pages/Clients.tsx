@@ -237,11 +237,13 @@ const Clients = () => {
                             </div>
                           )}
                         </div>
-                        {selectedClient.notes && (
-                          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950 rounded">
-                            <p className="text-sm">📝 {selectedClient.notes}</p>
+                        <div className="mt-3">
+                          <h5 className="text-sm font-medium mb-2">Коментар про клієнта</h5>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded">
+                            <p className="text-sm whitespace-pre-wrap">{selectedClient.notes || "Немає коментарів"}</p>
                           </div>
-                        )}
+                          <p className="text-xs text-muted-foreground mt-1">Цей коментар доступний для перегляду та редагування всім майстрам та адміністраторам в календарі</p>
+                        </div>
                       </div>
 
                       <div>

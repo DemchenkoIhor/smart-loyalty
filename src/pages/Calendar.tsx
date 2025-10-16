@@ -24,7 +24,7 @@ interface Appointment {
   client_id: string;
   employee_notes?: string;
   admin_notes?: string;
-  clients: { full_name: string; phone: string };
+  clients: { full_name: string; phone: string; notes?: string };
   services: { name: string };
   employees: { display_name?: string; profiles: { full_name: string } };
 }
@@ -123,7 +123,7 @@ const Calendar = () => {
         .from("appointments")
         .select(`
           *,
-          clients(full_name, phone),
+          clients(full_name, phone, notes),
           services(name),
           employees(display_name, profiles(full_name))
         `)
@@ -655,18 +655,29 @@ const Calendar = () => {
                 <p className="font-medium">{selectedAppointment.price} грн</p>
               </div>
               {selectedAppointment.admin_notes && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Нотатки адміна</p>
+                <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded">
+                  <p className="text-sm text-muted-foreground mb-1">Коментар до запису (адміністратор)</p>
                   <p className="text-sm">{selectedAppointment.admin_notes}</p>
                 </div>
               )}
               <div>
-                <Label htmlFor="employee_notes">Коментар майстра</Label>
+                <Label htmlFor="client_notes">Коментар про клієнта</Label>
+                <Textarea
+                  id="client_notes"
+                  defaultValue={selectedAppointment.clients.notes || ""}
+                  onBlur={(e) => updateClientNotes(selectedAppointment.client_id, e.target.value)}
+                  placeholder="Примітки про клієнта (доступні всім майстрам)..."
+                  disabled={userRole !== "admin" && userRole !== "employee"}
+                />
+              </div>
+              <div>
+                <Label htmlFor="employee_notes">Коментар майстра до запису</Label>
                 <Textarea
                   id="employee_notes"
                   defaultValue={selectedAppointment.employee_notes || ""}
                   onBlur={(e) => updateEmployeeNotes(selectedAppointment.id, e.target.value)}
-                  placeholder="Додати коментар..."
+                  placeholder="Додати коментар до цього запису..."
+                  disabled={userRole !== "admin" && userRole !== "employee"}
                 />
               </div>
               <div className="flex gap-2">
