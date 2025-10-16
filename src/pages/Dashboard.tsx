@@ -80,26 +80,42 @@ const Dashboard = () => {
         setUserName(profile.full_name);
       }
 
-      // Get user role
-      const { data: roleData, error } = await supabase
+      // Get user roles (handle multiple roles gracefully)
+      const { data: roles, error } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
+        .eq("user_id", session.user.id);
 
       if (error) {
-        console.error("Error fetching role:", error);
+        console.error("Error fetching roles:", error);
         toast.error("Помилка перевірки ролі користувача");
         return;
       }
 
-      if (!roleData) {
+      let role: string | null = null;
+      if (roles && roles.length > 0) {
+        const roleList = roles.map(r => r.role);
+        role = roleList.includes("admin") ? "admin" : (roleList.includes("employee") ? "employee" : null);
+      }
+
+      // Fallback: if no explicit role, check if user is linked to employees table
+      if (!role) {
+        const { data: emp } = await supabase
+          .from("employees")
+          .select("id")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        if (emp) role = "employee";
+      }
+
+      if (!role) {
         toast.error("У вас немає доступу до системи");
-        handleLogout();
+        await supabase.auth.signOut();
+        navigate("/login");
         return;
       }
 
-      setUserRole(roleData.role);
+      setUserRole(role);
     } catch (error) {
       console.error("Auth error:", error);
       toast.error("Помилка автентифікації");
