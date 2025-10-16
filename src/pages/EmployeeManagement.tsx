@@ -225,7 +225,9 @@ const EmployeeManagement = () => {
 
       if (empError) throw empError;
 
-      // Assign employee role
+      // Assign employee role using admin session
+      const { data: { session: adminSession } } = await supabase.auth.getSession();
+      
       const { error: roleError } = await supabase
         .from("user_roles")
         .insert({
@@ -233,7 +235,10 @@ const EmployeeManagement = () => {
           role: "employee"
         });
 
-      if (roleError) throw roleError;
+      if (roleError) {
+        console.error("Role assignment error:", roleError);
+        throw new Error("Не вдалося призначити роль працівника");
+      }
 
       toast.success("Працівника створено");
       loadEmployees();
