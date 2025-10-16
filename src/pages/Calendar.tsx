@@ -109,7 +109,54 @@ const Calendar = () => {
     // Calculate height based on duration
     const height = (durationMinutes / 60) * slotHeight;
     
-    return { top, height };
+  return { top, height };
+  };
+
+  // Compute non-overlapping columns per day cluster for side-by-side layout
+  const computeDayLayout = (dayAppointments: Appointment[]) => {
+    type Evt = { id: string; start: number; end: number };
+    const startHour = 8;
+    const toMinutesFromStart = (iso: string) => {
+      const d = parseISO(iso);
+      return (d.getHours() - startHour) * 60 + d.getMinutes();
+    };
+    const events: Evt[] = dayAppointments
+      .map(a => ({ id: a.id, start: toMinutesFromStart(a.scheduled_at), end: toMinutesFromStart(a.scheduled_at) + a.duration_minutes }))
+      .sort((a, b) => a.start - b.start || a.end - b.end);
+
+    const indexById: Record<string, number> = {};
+    const sizeById: Record<string, number> = {};
+
+    let active: { id: string; end: number; col: number }[] = [];
+    let clusterIds: string[] = [];
+    let clusterMax = 0;
+
+    const finalizeCluster = () => {
+      clusterIds.forEach(id => { sizeById[id] = Math.max(1, clusterMax); });
+      clusterIds = [];
+      clusterMax = 0;
+    };
+
+    for (let i = 0; i < events.length; i++) {
+      const evt = events[i];
+      // Drop finished events
+      active = active.filter(a => a.end > evt.start);
+      const used = new Set(active.map(a => a.col));
+      let col = 0; while (used.has(col)) col++;
+      active.push({ id: evt.id, end: evt.end, col });
+      indexById[evt.id] = col;
+      clusterIds.push(evt.id);
+      clusterMax = Math.max(clusterMax, active.length);
+
+      const next = events[i + 1];
+      const latestEnd = Math.max(...active.map(a => a.end));
+      if (!next || next.start >= latestEnd) {
+        finalizeCluster();
+        active = [];
+      }
+    }
+
+    return { indexById, sizeById };
   };
 
   const checkAuthAndLoadData = async () => {
@@ -613,29 +660,46 @@ const Calendar = () => {
             </div>
             
             <div className="max-h-[600px] overflow-auto">
-              {hours.map(hour => (
-                <div key={hour} className="grid grid-cols-8 border-b last:border-b-0 min-h-[80px]">
-                  <div className="border-r p-2 text-sm text-muted-foreground bg-muted/20 flex items-start justify-center sticky left-0">
-                    {`${hour}:00`}
-                  </div>
+              <div className="relative" style={{ height: `${hours.length * 80}px` }}>
+                {/* Background grid (hours and vertical day separators) */}
+                <div className="absolute inset-0">
+                  {hours.map(hour => (
+                    <div key={hour} className="grid grid-cols-8 border-b last:border-b-0 min-h-[80px]">
+                      <div className="border-r p-2 text-sm text-muted-foreground bg-muted/20 flex items-start justify-center">
+                        {`${hour}:00`}
+                      </div>
+                      {weekDays.map((_, idx) => (
+                        <div key={idx} className="border-r last:border-r-0" />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Appointments overlay */}
+                <div className="pointer-events-none absolute inset-0 grid grid-cols-8">
+                  <div />
                   {weekDays.map((day, dayIndex) => {
                     const dayAppointments = getAppointmentsForDay(day);
+                    const { indexById, sizeById } = computeDayLayout(dayAppointments);
                     return (
-                      <div key={dayIndex} className="border-r last:border-r-0 hover:bg-accent/5 transition-colors relative">
-                        {/* Render appointments with absolute positioning */}
+                      <div key={dayIndex} className="relative">
                         {dayAppointments.map(apt => {
                           const { top, height } = getAppointmentPosition(apt.scheduled_at, apt.duration_minutes);
-                          
+                          const cols = sizeById[apt.id] || 1;
+                          const colIndex = indexById[apt.id] || 0;
+                          const widthPercent = 100 / cols;
+                          const leftPercent = widthPercent * colIndex;
+
                           return (
                             <div
                               key={apt.id}
-                              style={{ 
-                                top: `${top}px`, 
+                              style={{
+                                top: `${top}px`,
                                 height: `${height}px`,
-                                left: '4px',
-                                right: '4px'
+                                left: `calc(${leftPercent}% + 4px)`,
+                                width: `calc(${widthPercent}% - 8px)`
                               }}
-                              className={`absolute text-xs p-2 rounded border cursor-pointer hover:shadow-soft transition-shadow overflow-hidden ${getStatusColor(apt.status)}`}
+                              className={`absolute pointer-events-auto text-xs p-2 rounded border cursor-pointer hover:shadow-soft transition-shadow overflow-hidden ${getStatusColor(apt.status)}`}
                               onClick={() => {
                                 setSelectedAppointment(apt);
                                 setIsDetailsDialogOpen(true);
@@ -656,7 +720,7 @@ const Calendar = () => {
                     );
                   })}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
         )}
