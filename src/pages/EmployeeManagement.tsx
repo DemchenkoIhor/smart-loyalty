@@ -200,48 +200,52 @@ const EmployeeManagement = () => {
       const fullName = formData.get("fullName") as string;
       const bio = formData.get("bio") as string;
 
-      // Create auth user
+      // Keep current admin session to avoid being switched to the new user after signUp
+      const { data: { session: adminSession } } = await supabase.auth.getSession();
+      if (!adminSession) {
+        toast.error("Адмін-сесія не знайдена. Перезайдіть як адмін.");
+        return;
+      }
+
+      // Create auth user (email confirmation safe). Always provide redirect.
+      const redirectUrl = `${window.location.origin}/`;
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            full_name: fullName
-          }
-        }
+          data: { full_name: fullName },
+          emailRedirectTo: redirectUrl,
+        },
       });
 
       if (authError) throw authError;
-      if (!authData.user) throw new Error("Failed to create user");
+      if (!authData.user) throw new Error("Не вдалося створити користувача");
 
-      // Create employee record
+      // Restore admin session in case SDK switched to the new user
+      const { error: restoreError } = await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token!,
+      });
+      if (restoreError) throw restoreError;
+
+      // Create employee record (admin session)
       const { error: empError } = await supabase
         .from("employees")
         .insert({
           user_id: authData.user.id,
           bio,
-          is_active: true
+          is_active: true,
         });
-
       if (empError) throw empError;
 
-      // Assign employee role using admin session
-      const { data: { session: adminSession } } = await supabase.auth.getSession();
-      
+      // Assign employee role (admin session, passes RLS)
       const { error: roleError } = await supabase
         .from("user_roles")
-        .insert({
-          user_id: authData.user.id,
-          role: "employee"
-        });
+        .insert({ user_id: authData.user.id, role: "employee" });
+      if (roleError) throw roleError;
 
-      if (roleError) {
-        console.error("Role assignment error:", roleError);
-        throw new Error("Не вдалося призначити роль працівника");
-      }
-
-      toast.success("Працівника створено");
-      loadEmployees();
+      toast.success("Працівника створено. Користувач може увійти після підтвердження email (за потреби).");
+      await loadEmployees();
       setIsCreateEmployeeOpen(false);
     } catch (error: any) {
       console.error("Error creating employee:", error);
