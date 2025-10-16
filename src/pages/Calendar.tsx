@@ -88,6 +88,30 @@ const Calendar = () => {
     }
   }, [currentWeek, userId, userRole]);
 
+  const getAppointmentsForDay = (day: Date) => {
+    return appointments.filter(apt => {
+      const aptDate = new Date(apt.scheduled_at);
+      return aptDate.toDateString() === day.toDateString();
+    });
+  };
+
+  const getAppointmentPosition = (scheduledAt: string, durationMinutes: number) => {
+    const aptDate = new Date(scheduledAt);
+    const hours = aptDate.getHours();
+    const minutes = aptDate.getMinutes();
+    
+    // Calculate position from start of day (8:00)
+    const startHour = 8;
+    const minutesFromStart = (hours - startHour) * 60 + minutes;
+    const slotHeight = 80; // Height of one hour slot
+    const top = (minutesFromStart / 60) * slotHeight;
+    
+    // Calculate height based on duration
+    const height = (durationMinutes / 60) * slotHeight;
+    
+    return { top, height };
+  };
+
   const checkAuthAndLoadData = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -595,36 +619,39 @@ const Calendar = () => {
                     {`${hour}:00`}
                   </div>
                   {weekDays.map((day, dayIndex) => {
-                    const slotsAppts = getAppointmentsForSlot(day, hour);
+                    const dayAppointments = getAppointmentsForDay(day);
                     return (
-                      <div key={dayIndex} className="border-r last:border-r-0 p-1 hover:bg-accent/5 transition-colors relative">
-                        <div className="space-y-1">
-                          {slotsAppts.map(apt => {
-                            const heightPerMinute = 80 / 60; // 80px per hour / 60 minutes
-                            const cardHeight = apt.duration_minutes * heightPerMinute;
-                            
-                            return (
-                              <div
-                                key={apt.id}
-                                style={{ minHeight: `${cardHeight}px` }}
-                                className={`text-xs p-2 rounded border cursor-pointer hover:shadow-soft transition-shadow ${getStatusColor(apt.status)}`}
-                                onClick={() => {
-                                  setSelectedAppointment(apt);
-                                  setIsDetailsDialogOpen(true);
-                                }}
-                              >
-                                <div className="font-medium truncate">{apt.clients.full_name}</div>
-                                <div className="truncate text-[10px] opacity-75">{apt.services.name}</div>
-                                <div className="text-[10px] opacity-75">{apt.duration_minutes} хв</div>
-                                {apt.admin_notes && (
-                                  <div className="mt-1 pt-1 border-t border-current/20">
-                                    <div className="text-[10px] opacity-90 line-clamp-2">{apt.admin_notes}</div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+                      <div key={dayIndex} className="border-r last:border-r-0 hover:bg-accent/5 transition-colors relative">
+                        {/* Render appointments with absolute positioning */}
+                        {dayAppointments.map(apt => {
+                          const { top, height } = getAppointmentPosition(apt.scheduled_at, apt.duration_minutes);
+                          
+                          return (
+                            <div
+                              key={apt.id}
+                              style={{ 
+                                top: `${top}px`, 
+                                height: `${height}px`,
+                                left: '4px',
+                                right: '4px'
+                              }}
+                              className={`absolute text-xs p-2 rounded border cursor-pointer hover:shadow-soft transition-shadow overflow-hidden ${getStatusColor(apt.status)}`}
+                              onClick={() => {
+                                setSelectedAppointment(apt);
+                                setIsDetailsDialogOpen(true);
+                              }}
+                            >
+                              <div className="font-medium truncate">{apt.clients.full_name}</div>
+                              <div className="truncate text-[10px] opacity-75">{apt.services.name}</div>
+                              <div className="text-[10px] opacity-75">{apt.duration_minutes} хв</div>
+                              {apt.admin_notes && height > 60 && (
+                                <div className="mt-1 pt-1 border-t border-current/20">
+                                  <div className="text-[10px] opacity-90 line-clamp-2">{apt.admin_notes}</div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
