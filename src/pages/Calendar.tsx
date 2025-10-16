@@ -550,12 +550,12 @@ const Calendar = () => {
                         </div>
                       </div>
                       <div>
-                        <Label htmlFor="notes">Нотатки адміна</Label>
+                        <Label htmlFor="notes">Коментар для майстра</Label>
                         <Textarea
                           id="notes"
                           value={newAppointment.admin_notes}
                           onChange={(e) => setNewAppointment({...newAppointment, admin_notes: e.target.value})}
-                          placeholder="Додаткова інформація..."
+                          placeholder="Побажання клієнта, деталі запису тощо..."
                         />
                       </div>
                       <Button onClick={createAppointment} className="w-full">
