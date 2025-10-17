@@ -462,11 +462,26 @@ const Calendar = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "completed": return "bg-success/20 text-success-foreground border-success";
-      case "confirmed": return "bg-primary/20 text-primary border-primary";
-      case "cancelled": return "bg-destructive/20 text-destructive-foreground border-destructive";
-      default: return "bg-warning/20 text-warning-foreground border-warning";
+      case "completed": return "bg-success/20 border-success";
+      case "confirmed": return "bg-primary/20 border-primary";
+      case "cancelled": return "bg-destructive/20 border-destructive";
+      default: return "bg-warning/20 border-warning";
     }
+  };
+
+  const getEmployeeColor = (employeeId: string) => {
+    const colors = [
+      "bg-blue-100 dark:bg-blue-900/40 border-blue-400 dark:border-blue-600",
+      "bg-purple-100 dark:bg-purple-900/40 border-purple-400 dark:border-purple-600",
+      "bg-green-100 dark:bg-green-900/40 border-green-400 dark:border-green-600",
+      "bg-orange-100 dark:bg-orange-900/40 border-orange-400 dark:border-orange-600",
+      "bg-pink-100 dark:bg-pink-900/40 border-pink-400 dark:border-pink-600",
+      "bg-teal-100 dark:bg-teal-900/40 border-teal-400 dark:border-teal-600",
+      "bg-indigo-100 dark:bg-indigo-900/40 border-indigo-400 dark:border-indigo-600",
+      "bg-rose-100 dark:bg-rose-900/40 border-rose-400 dark:border-rose-600",
+    ];
+    const hash = employeeId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[hash % colors.length];
   };
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeek, i));
@@ -712,29 +727,35 @@ const Calendar = () => {
                           const widthPercent = 100 / cols;
                           const leftPercent = widthPercent * colIndex;
 
+                          const employeeName = apt.employees.display_name || apt.employees.profiles?.full_name || "Майстер";
+                          
                           return (
                             <div
                               key={apt.id}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
-                                left: `calc(${leftPercent}% + 4px)`,
-                                width: `calc(${widthPercent}% - 8px)`
+                                left: `calc(${leftPercent}% + 2px)`,
+                                width: `calc(${widthPercent}% - 4px)`,
+                                minWidth: cols > 1 ? '120px' : '100px'
                               }}
-                              className={`absolute pointer-events-auto text-xs p-2 rounded border cursor-pointer hover:shadow-soft transition-shadow overflow-hidden ${getStatusColor(apt.status)}`}
+                              className={`absolute pointer-events-auto rounded border-2 cursor-pointer hover:shadow-medium hover:scale-[1.02] transition-all overflow-hidden ${getEmployeeColor(apt.employee_id)}`}
                               onClick={() => {
                                 setSelectedAppointment(apt);
                                 setIsDetailsDialogOpen(true);
                               }}
                             >
-                              <div className="font-medium truncate">{apt.clients.full_name}</div>
-                              <div className="truncate text-[10px] opacity-75">{apt.services.name}</div>
-                              <div className="text-[10px] opacity-75">{apt.duration_minutes} хв</div>
-                              {apt.admin_notes && height > 60 && (
-                                <div className="mt-1 pt-1 border-t border-current/20">
-                                  <div className="text-[10px] opacity-90 line-clamp-2">{apt.admin_notes}</div>
-                                </div>
-                              )}
+                              <div className="p-1.5 h-full flex flex-col text-foreground">
+                                <div className="font-semibold text-[11px] leading-tight truncate">{apt.clients.full_name}</div>
+                                <div className="text-[10px] font-medium truncate opacity-90">{employeeName}</div>
+                                <div className="text-[10px] truncate opacity-80">{apt.services.name}</div>
+                                <div className="text-[9px] opacity-70 mt-0.5">{format(parseISO(apt.scheduled_at), "HH:mm")} • {apt.duration_minutes} хв</div>
+                                {apt.admin_notes && height > 70 && (
+                                  <div className="mt-1 pt-1 border-t border-foreground/20 flex-1">
+                                    <div className="text-[9px] opacity-75 line-clamp-2">{apt.admin_notes}</div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
