@@ -735,26 +735,30 @@ const Calendar = () => {
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
-                                left: `calc(${leftPercent}% + 2px)`,
-                                width: `calc(${widthPercent}% - 4px)`,
-                                minWidth: cols > 1 ? '120px' : '100px'
+                                left: `${leftPercent}%`,
+                                width: `${widthPercent}%`,
+                                padding: '2px'
                               }}
-                              className={`absolute pointer-events-auto rounded border-2 cursor-pointer hover:shadow-medium hover:scale-[1.02] transition-all overflow-hidden ${getEmployeeColor(apt.employee_id)}`}
-                              onClick={() => {
-                                setSelectedAppointment(apt);
-                                setIsDetailsDialogOpen(true);
-                              }}
+                              className="absolute pointer-events-auto"
                             >
-                              <div className="p-1.5 h-full flex flex-col text-foreground">
-                                <div className="font-semibold text-[11px] leading-tight truncate">{apt.clients.full_name}</div>
-                                <div className="text-[10px] font-medium truncate opacity-90">{employeeName}</div>
-                                <div className="text-[10px] truncate opacity-80">{apt.services.name}</div>
-                                <div className="text-[9px] opacity-70 mt-0.5">{format(parseISO(apt.scheduled_at), "HH:mm")} • {apt.duration_minutes} хв</div>
-                                {apt.admin_notes && height > 70 && (
-                                  <div className="mt-1 pt-1 border-t border-foreground/20 flex-1">
-                                    <div className="text-[9px] opacity-75 line-clamp-2">{apt.admin_notes}</div>
-                                  </div>
-                                )}
+                              <div 
+                                className={`h-full rounded border-2 cursor-pointer hover:shadow-medium hover:scale-[1.02] transition-all overflow-hidden ${getEmployeeColor(apt.employee_id)}`}
+                                onClick={() => {
+                                  setSelectedAppointment(apt);
+                                  setIsDetailsDialogOpen(true);
+                                }}
+                              >
+                                <div className="p-1.5 h-full flex flex-col text-foreground">
+                                  <div className="font-semibold text-[11px] leading-tight truncate">{apt.clients.full_name}</div>
+                                  <div className="text-[10px] font-medium truncate opacity-90">{employeeName}</div>
+                                  <div className="text-[10px] truncate opacity-80">{apt.services.name}</div>
+                                  <div className="text-[9px] opacity-70 mt-0.5">{format(parseISO(apt.scheduled_at), "HH:mm")} • {apt.duration_minutes} хв</div>
+                                  {apt.admin_notes && height > 70 && (
+                                    <div className="mt-1 pt-1 border-t border-foreground/20 flex-1">
+                                      <div className="text-[9px] opacity-75 line-clamp-2">{apt.admin_notes}</div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
