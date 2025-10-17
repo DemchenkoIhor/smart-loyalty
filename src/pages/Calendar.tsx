@@ -73,7 +73,10 @@ const Calendar = () => {
     admin_notes: "",
   });
   const scrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [scrollbarWidth, setScrollbarWidth] = useState(0);
+  const [visibleDays, setVisibleDays] = useState(7);
+  const [slotHeights, setSlotHeights] = useState<Record<number, number>>({});
 
   useEffect(() => {
     checkAuthAndLoadData();
@@ -97,21 +100,41 @@ const Calendar = () => {
     });
   };
 
-  const getAppointmentPosition = (scheduledAt: string, durationMinutes: number) => {
+  const getAppointmentPosition = (scheduledAt: string, durationMinutes: number, hourlySlotHeights: Record<number, number>) => {
     const aptDate = new Date(scheduledAt);
     const hours = aptDate.getHours();
     const minutes = aptDate.getMinutes();
     
-    // Calculate position from start of day (8:00)
     const startHour = 8;
-    const minutesFromStart = (hours - startHour) * 60 + minutes;
-    const slotHeight = 80; // Height of one hour slot
-    const top = (minutesFromStart / 60) * slotHeight;
     
-    // Calculate height based on duration
-    const height = (durationMinutes / 60) * slotHeight;
+    // Calculate top by summing all slot heights before this appointment
+    let top = 0;
+    for (let h = startHour; h < hours; h++) {
+      top += hourlySlotHeights[h] || 80;
+    }
+    top += (minutes / 60) * (hourlySlotHeights[hours] || 80);
     
-  return { top, height };
+    // Calculate height spanning multiple slots if needed
+    const endHour = Math.floor(hours + (minutes + durationMinutes) / 60);
+    const endMinutes = (minutes + durationMinutes) % 60;
+    
+    let height = 0;
+    for (let h = hours; h <= endHour; h++) {
+      const slotH = hourlySlotHeights[h] || 80;
+      if (h === hours) {
+        // First slot: from current minutes to end of hour
+        const remainingMinutes = h === endHour ? endMinutes : 60 - minutes;
+        height += (remainingMinutes / 60) * slotH;
+      } else if (h === endHour) {
+        // Last slot: from start of hour to end minutes
+        height += (endMinutes / 60) * slotH;
+      } else {
+        // Full slot
+        height += slotH;
+      }
+    }
+    
+    return { top, height };
   };
 
   // Compute non-overlapping columns per day cluster for side-by-side layout
@@ -484,8 +507,52 @@ const Calendar = () => {
     return colors[hash % colors.length];
   };
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeek, i));
+  // Start from today for better future appointment visibility
+  const today = startOfWeek(new Date(), { locale: uk });
+  const isCurrentWeek = currentWeek.getTime() === today.getTime();
+  const startDay = isCurrentWeek ? new Date() : currentWeek;
+  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(startDay, i));
   const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 - 20:00
+
+  // Calculate optimal number of visible days and slot heights
+  useEffect(() => {
+    const updateLayout = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const containerWidth = container.offsetWidth - 48; // Padding
+      const minDayWidth = 160; // Minimum width per day for readable appointments
+      const timeColumnWidth = 80;
+      
+      const availableWidth = containerWidth - timeColumnWidth;
+      const maxDays = Math.max(1, Math.min(7, Math.floor(availableWidth / minDayWidth)));
+      setVisibleDays(maxDays);
+
+      // Calculate slot heights based on max overlapping appointments per hour
+      const newSlotHeights: Record<number, number> = {};
+      hours.forEach(hour => {
+        let maxCols = 1;
+        weekDays.forEach(day => {
+          const dayAppointments = appointments.filter(apt => {
+            const aptDate = parseISO(apt.scheduled_at);
+            const aptHour = aptDate.getHours();
+            return isSameDay(aptDate, day) && aptHour === hour;
+          });
+          const { sizeById } = computeDayLayout(dayAppointments);
+          const maxForDay = Math.max(...Object.values(sizeById), 1);
+          maxCols = Math.max(maxCols, maxForDay);
+        });
+        // Base height 80px, increase for overlapping appointments
+        // Minimum height to show: name (11px) + employee (10px) + service (10px) + time (9px) + padding (~12px) = ~52px
+        newSlotHeights[hour] = Math.max(80, maxCols > 2 ? 100 : 80);
+      });
+      setSlotHeights(newSlotHeights);
+    };
+
+    updateLayout();
+    window.addEventListener('resize', updateLayout);
+    return () => window.removeEventListener('resize', updateLayout);
+  }, [appointments, weekDays.length]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -678,7 +745,7 @@ const Calendar = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6">
+      <div ref={containerRef} className="container mx-auto px-4 py-6">
         {loading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
@@ -686,10 +753,16 @@ const Calendar = () => {
           </div>
         ) : (
           <div className="bg-card rounded-lg shadow-medium overflow-hidden">
-            <div className="grid grid-cols-8" style={{ paddingRight: `${scrollbarWidth}px` }}>
-              <div className="border-r border-b p-2 text-sm font-medium text-muted-foreground bg-muted/50"></div>
+            <div 
+              className="grid border-b" 
+              style={{ 
+                gridTemplateColumns: `80px repeat(${visibleDays}, 1fr)`,
+                paddingRight: `${scrollbarWidth}px` 
+              }}
+            >
+              <div className="border-r p-2 text-sm font-medium text-muted-foreground bg-muted/50"></div>
               {weekDays.map((day, i) => (
-                <div key={i} className="border-r last:border-r-0 border-b p-2 text-center bg-muted/50">
+                <div key={i} className="border-r last:border-r-0 p-2 text-center bg-muted/50">
                   <div className="text-xs text-muted-foreground">{format(day, "EEE", { locale: uk })}</div>
                   <div className="text-sm font-medium">{format(day, "d MMM", { locale: uk })}</div>
                 </div>
@@ -697,23 +770,42 @@ const Calendar = () => {
             </div>
             
             <div ref={scrollRef} className="max-h-[600px] overflow-auto">
-              <div className="relative" style={{ height: `${hours.length * 80}px` }}>
+              <div className="relative" style={{ height: `${Object.values(slotHeights).reduce((sum, h) => sum + h, hours.length * 80)}px` }}>
                 {/* Background grid (hours and vertical day separators) */}
                 <div className="absolute inset-0">
-                  {hours.map(hour => (
-                    <div key={hour} className="grid grid-cols-8 border-b last:border-b-0 h-[80px]">
-                      <div className="border-r p-2 text-sm text-muted-foreground bg-muted/20 flex items-start justify-center">
-                        {`${hour}:00`}
+                  {hours.map((hour, hourIdx) => {
+                    const slotHeight = slotHeights[hour] || 80;
+                    let topOffset = 0;
+                    for (let i = 0; i < hourIdx; i++) {
+                      topOffset += slotHeights[hours[i]] || 80;
+                    }
+                    
+                    return (
+                      <div 
+                        key={hour} 
+                        className="grid border-b last:border-b-0" 
+                        style={{ 
+                          gridTemplateColumns: `80px repeat(${visibleDays}, 1fr)`,
+                          height: `${slotHeight}px`,
+                          position: 'absolute',
+                          top: `${topOffset}px`,
+                          left: 0,
+                          right: 0
+                        }}
+                      >
+                        <div className="border-r p-2 text-sm text-muted-foreground bg-muted/20 flex items-start justify-center">
+                          {`${hour}:00`}
+                        </div>
+                        {weekDays.map((_, idx) => (
+                          <div key={idx} className="border-r last:border-r-0" />
+                        ))}
                       </div>
-                      {weekDays.map((_, idx) => (
-                        <div key={idx} className="border-r last:border-r-0" />
-                      ))}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Appointments overlay */}
-                <div className="pointer-events-none absolute inset-0 grid grid-cols-8">
+                <div className="pointer-events-none absolute inset-0 grid" style={{ gridTemplateColumns: `80px repeat(${visibleDays}, 1fr)` }}>
                   <div />
                   {weekDays.map((day, dayIndex) => {
                     const dayAppointments = getAppointmentsForDay(day);
@@ -721,7 +813,7 @@ const Calendar = () => {
                     return (
                       <div key={dayIndex} className="relative">
                         {dayAppointments.map(apt => {
-                          const { top, height } = getAppointmentPosition(apt.scheduled_at, apt.duration_minutes);
+                          const { top, height } = getAppointmentPosition(apt.scheduled_at, apt.duration_minutes, slotHeights);
                           const cols = sizeById[apt.id] || 1;
                           const colIndex = indexById[apt.id] || 0;
                           const widthPercent = 100 / cols;
@@ -749,9 +841,9 @@ const Calendar = () => {
                                 }}
                               >
                                 <div className="p-1.5 h-full flex flex-col text-foreground">
-                                  <div className="font-semibold text-[11px] leading-tight truncate">{apt.clients.full_name}</div>
-                                  <div className="text-[10px] font-medium truncate opacity-90">{employeeName}</div>
-                                  <div className="text-[10px] truncate opacity-80">{apt.services.name}</div>
+                                  <div className="font-semibold text-[11px] leading-tight">{apt.clients.full_name}</div>
+                                  <div className="text-[10px] font-medium opacity-90">{employeeName}</div>
+                                  <div className="text-[10px] opacity-80">{apt.services.name}</div>
                                   <div className="text-[9px] opacity-70 mt-0.5">{format(parseISO(apt.scheduled_at), "HH:mm")} • {apt.duration_minutes} хв</div>
                                   {apt.admin_notes && height > 70 && (
                                     <div className="mt-1 pt-1 border-t border-foreground/20 flex-1">
