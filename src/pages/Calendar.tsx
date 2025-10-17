@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,8 @@ const Calendar = () => {
     scheduled_time: "",
     admin_notes: "",
   });
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollbarWidth, setScrollbarWidth] = useState(0);
 
   useEffect(() => {
     checkAuthAndLoadData();
@@ -470,6 +472,26 @@ const Calendar = () => {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeek, i));
   const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 - 20:00
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const sbw = el.offsetWidth - el.clientWidth;
+      setScrollbarWidth(sbw > 0 ? sbw : 0);
+    };
+
+    update();
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+    window.addEventListener('resize', update);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, [appointments]);
+
   const getAppointmentsForSlot = (day: Date, hour: number) => {
     return appointments.filter(apt => {
       const aptDate = parseISO(apt.scheduled_at);
@@ -649,7 +671,7 @@ const Calendar = () => {
           </div>
         ) : (
           <div className="bg-card rounded-lg shadow-medium overflow-hidden">
-            <div className="grid grid-cols-8">
+            <div className="grid grid-cols-8" style={{ paddingRight: `${scrollbarWidth}px` }}>
               <div className="border-r border-b p-2 text-sm font-medium text-muted-foreground bg-muted/50"></div>
               {weekDays.map((day, i) => (
                 <div key={i} className="border-r last:border-r-0 border-b p-2 text-center bg-muted/50">
@@ -659,7 +681,7 @@ const Calendar = () => {
               ))}
             </div>
             
-            <div className="max-h-[600px] overflow-auto">
+            <div ref={scrollRef} className="max-h-[600px] overflow-auto">
               <div className="relative" style={{ height: `${hours.length * 80}px` }}>
                 {/* Background grid (hours and vertical day separators) */}
                 <div className="absolute inset-0">
