@@ -649,10 +649,10 @@ const Calendar = () => {
           </div>
         ) : (
           <div className="bg-card rounded-lg shadow-medium overflow-hidden">
-            <div className="grid grid-cols-8 border-b">
-              <div className="border-r p-2 text-sm font-medium text-muted-foreground bg-muted/50"></div>
+            <div className="grid grid-cols-8">
+              <div className="border-r border-b p-2 text-sm font-medium text-muted-foreground bg-muted/50"></div>
               {weekDays.map((day, i) => (
-                <div key={i} className="border-r last:border-r-0 p-2 text-center bg-muted/50">
+                <div key={i} className="border-r last:border-r-0 border-b p-2 text-center bg-muted/50">
                   <div className="text-xs text-muted-foreground">{format(day, "EEE", { locale: uk })}</div>
                   <div className="text-sm font-medium">{format(day, "d MMM", { locale: uk })}</div>
                 </div>
@@ -664,7 +664,7 @@ const Calendar = () => {
                 {/* Background grid (hours and vertical day separators) */}
                 <div className="absolute inset-0">
                   {hours.map(hour => (
-                    <div key={hour} className="grid grid-cols-8 border-b last:border-b-0 min-h-[80px]">
+                    <div key={hour} className="grid grid-cols-8 border-b last:border-b-0 h-[80px]">
                       <div className="border-r p-2 text-sm text-muted-foreground bg-muted/20 flex items-start justify-center">
                         {`${hour}:00`}
                       </div>
