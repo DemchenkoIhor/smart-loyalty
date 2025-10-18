@@ -518,15 +518,25 @@ const Calendar = () => {
       if (!container) return;
 
       const containerWidth = container.offsetWidth - 48;
-      // Compute min day width so the longest employee name fits one line
+      // Базова мінімальна ширина картки = довжині найдовшого імені працівника в один рядок
       const longestNameChars = employees.reduce((max, e) => Math.max(max, (e.display_name || e.profiles?.full_name || "").length), 0);
-      const approxCharPx = 7; // approximate width per character at small font size
-      const paddingPx = 24; // horizontal paddings
-      const minDayWidth = Math.max(140, Math.min(280, longestNameChars * approxCharPx + paddingPx));
+      const approxCharPx = 7; // приблизна ширина символу для маленького шрифту
+      const paddingPx = 24; // горизонтальні відступи
+      const minCardWidth = Math.max(160, Math.min(360, longestNameChars * approxCharPx + paddingPx));
       const timeColumnWidth = 80;
       
       const availableWidth = containerWidth - timeColumnWidth;
-      const maxDays = Math.max(1, Math.min(7, Math.floor(availableWidth / minDayWidth)));
+
+      // Враховуємо максимально можливу кількість одночасних записів СЬОГОДНІ
+      const todayAppointments = appointments.filter(apt => isSameDay(parseISO(apt.scheduled_at), currentStartDate));
+      let maxColsToday = 1;
+      if (todayAppointments.length > 0) {
+        const { sizeById } = computeDayLayout(todayAppointments);
+        maxColsToday = Math.max(...Object.values(sizeById), 1);
+      }
+
+      const requiredDayWidth = minCardWidth * maxColsToday; // щоб кожна картка >= ширині імені працівника
+      const maxDays = Math.max(1, Math.min(7, Math.floor(availableWidth / requiredDayWidth)));
       setVisibleDays(maxDays);
 
       // Calculate slot heights based on content requirements
@@ -573,7 +583,7 @@ const Calendar = () => {
     updateLayout();
     window.addEventListener('resize', updateLayout);
     return () => window.removeEventListener('resize', updateLayout);
-  }, [appointments, weekDays.length, employees]);
+  }, [appointments, weekDays.length, employees, currentStartDate]);
 
   useEffect(() => {
     const el = scrollRef.current;
