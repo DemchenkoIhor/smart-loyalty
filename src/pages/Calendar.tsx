@@ -76,6 +76,9 @@ const Calendar = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollbarWidth, setScrollbarWidth] = useState(0);
   const [slotHeights, setSlotHeights] = useState<Record<number, number>>({});
+  const [visibleDays, setVisibleDays] = useState(7);
+  const [dayMinWidth, setDayMinWidth] = useState(140);
+  const [currentStartDate, setCurrentStartDate] = useState<Date>(new Date());
 
   useEffect(() => {
     checkAuthAndLoadData();
@@ -91,6 +94,14 @@ const Calendar = () => {
       }
     }
   }, [currentWeek, userId, userRole]);
+
+  // Keep data window aligned with the week that contains the current start date
+  useEffect(() => {
+    const newWeekStart = startOfWeek(currentStartDate, { locale: uk });
+    if (newWeekStart.getTime() !== currentWeek.getTime()) {
+      setCurrentWeek(newWeekStart);
+    }
+  }, [currentStartDate]);
 
   const getAppointmentsForDay = (day: Date) => {
     return appointments.filter(apt => {
@@ -506,46 +517,75 @@ const Calendar = () => {
     return colors[hash % colors.length];
   };
 
-  // Always show full week (7 days)
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeek, i));
+  // Adaptive day range starting from currentStartDate
+  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(currentStartDate, i));
   const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 - 20:00
 
   // Calculate optimal slot heights
   useEffect(() => {
     const updateLayout = () => {
+      const container = containerRef.current;
+      if (container) {
+        // Calculate adaptive number of visible days based on container width and content
+        const containerWidth = container.offsetWidth - 48; // account for padding
+        const timeColumnWidth = 80;
+        const availableWidth = Math.max(0, containerWidth - timeColumnWidth);
+
+        // Measure longest employee name to ensure single line
+        const names = employees.map(e => e.display_name || e.profiles?.full_name || "").filter(Boolean);
+        const longestName = names.reduce((a, b) => (a.length >= b.length ? a : b), "Майстер");
+        let textWidth = 120;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.font = "500 11px Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto";
+          textWidth = ctx.measureText(longestName).width;
+        }
+        const cardPadding = 18; // inner paddings + borders
+
+        // Compute worst overlap across loaded appointments per day
+        let worstCols = 1;
+        const byDay: Record<string, Appointment[]> = {};
+        appointments.forEach(a => {
+          const d = new Date(a.scheduled_at).toDateString();
+          (byDay[d] ||= []).push(a);
+        });
+        Object.values(byDay).forEach(list => {
+          const { sizeById } = computeDayLayout(list);
+          const maxCols = Math.max(...Object.values(sizeById), 1);
+          worstCols = Math.max(worstCols, maxCols);
+        });
+
+        const cardMinWidth = Math.ceil(textWidth + cardPadding);
+        const minDayWidth = Math.max(140, Math.min(360, cardMinWidth * worstCols));
+        const maxDays = Math.max(1, Math.min(7, Math.floor(availableWidth / minDayWidth)));
+        setDayMinWidth(minDayWidth);
+        setVisibleDays(maxDays);
+      }
+
       // Calculate slot heights based on content requirements
       const newSlotHeights: Record<number, number> = {};
       hours.forEach(hour => {
         let maxRequiredHeight = 80; // Base height
-        
         weekDays.forEach(day => {
           const dayAppointments = appointments.filter(apt => {
             const aptDate = parseISO(apt.scheduled_at);
             const aptHour = aptDate.getHours();
             const aptEndMinutes = aptDate.getMinutes() + apt.duration_minutes;
             const aptEndHour = Math.floor(aptEndMinutes / 60) + aptHour;
-            
             // Check if appointment overlaps with this hour slot
-            return isSameDay(aptDate, day) && 
-                   ((aptHour === hour) || (aptHour < hour && aptEndHour > hour));
+            return isSameDay(aptDate, day) && ((aptHour === hour) || (aptHour < hour && aptEndHour > hour));
           });
-          
           if (dayAppointments.length > 0) {
             const { sizeById } = computeDayLayout(dayAppointments);
             const maxCols = Math.max(...Object.values(sizeById), 1);
-            
-            // Calculate required height to fit employee name in one line
+            // Ensure minimum height to comfortably fit content
             let requiredHeight = 60;
-            if (maxCols >= 4) {
-              requiredHeight = 100;
-            } else if (maxCols >= 2) {
-              requiredHeight = 80;
-            }
-            
+            if (maxCols >= 4) requiredHeight = 100;
+            else if (maxCols >= 2) requiredHeight = 80;
             maxRequiredHeight = Math.max(maxRequiredHeight, requiredHeight);
           }
         });
-        
         newSlotHeights[hour] = maxRequiredHeight;
       });
       setSlotHeights(newSlotHeights);
@@ -554,7 +594,7 @@ const Calendar = () => {
     updateLayout();
     window.addEventListener('resize', updateLayout);
     return () => window.removeEventListener('resize', updateLayout);
-  }, [appointments]);
+  }, [appointments, employees, currentStartDate]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -596,18 +636,18 @@ const Calendar = () => {
               <div>
                 <h1 className="text-2xl font-bold">Календар записів</h1>
                 <p className="text-sm text-muted-foreground">
-                  {format(currentWeek, "d MMMM", { locale: uk })} - {format(addDays(currentWeek, 6), "d MMMM yyyy", { locale: uk })}
+                  {format(currentStartDate, "d MMMM", { locale: uk })} - {format(addDays(currentStartDate, Math.max(visibleDays - 1, 0)), "d MMMM yyyy", { locale: uk })}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}>
+              <Button variant="outline" size="sm" onClick={() => setCurrentStartDate(addDays(currentStartDate, -visibleDays))}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setCurrentWeek(startOfWeek(new Date(), { locale: uk }))}>
+              <Button variant="outline" size="sm" onClick={() => setCurrentStartDate(new Date())}>
                 Сьогодні
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}>
+              <Button variant="outline" size="sm" onClick={() => setCurrentStartDate(addDays(currentStartDate, visibleDays))}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
               {userRole === "admin" && (
@@ -758,7 +798,7 @@ const Calendar = () => {
             <div 
               className="grid border-b" 
               style={{ 
-                gridTemplateColumns: `80px repeat(7, minmax(140px, 1fr))`,
+                gridTemplateColumns: `80px repeat(${visibleDays}, minmax(${dayMinWidth}px, 1fr))`,
                 paddingRight: `${scrollbarWidth}px` 
               }}
             >
