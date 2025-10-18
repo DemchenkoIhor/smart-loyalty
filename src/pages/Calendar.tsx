@@ -845,12 +845,12 @@ const Calendar = () => {
                                   <div className="text-[10px] font-medium opacity-90">{employeeName}</div>
                                   <div className="text-[10px] opacity-80">{apt.services.name}</div>
                                   <div className="text-[9px] opacity-70 mt-0.5">{format(parseISO(apt.scheduled_at), "HH:mm")} • {apt.duration_minutes} хв</div>
-                                  {apt.clients.notes && height > 60 && (
+                                  {apt.clients.notes && height > 50 && (
                                     <div className="mt-1 pt-1 border-t border-foreground/20">
                                       <div className="text-[9px] opacity-75 line-clamp-2">{apt.clients.notes}</div>
                                     </div>
                                   )}
-                                  {apt.admin_notes && height > 85 && (
+                                  {apt.admin_notes && height > 75 && (
                                     <div className="mt-1 pt-1 border-t border-foreground/20">
                                       <div className="text-[9px] opacity-75 italic line-clamp-1">Адмін: {apt.admin_notes}</div>
                                     </div>
