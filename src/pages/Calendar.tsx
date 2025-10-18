@@ -507,11 +507,8 @@ const Calendar = () => {
     return colors[hash % colors.length];
   };
 
-  // Start from today for better future appointment visibility
-  const today = startOfWeek(new Date(), { locale: uk });
-  const isCurrentWeek = currentWeek.getTime() === today.getTime();
-  const startDay = isCurrentWeek ? new Date() : currentWeek;
-  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(startDay, i));
+  // Always show full week from currentWeek start
+  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(currentWeek, i));
   const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 - 20:00
 
   // Calculate optimal number of visible days and slot heights
