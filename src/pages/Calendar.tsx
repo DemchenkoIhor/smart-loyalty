@@ -48,7 +48,7 @@ interface Service {
 
 const Calendar = () => {
   const navigate = useNavigate();
-  const [currentWeek, setCurrentWeek] = useState<Date>(startOfWeek(new Date(), { locale: uk }));
+  const [currentStartDate, setCurrentStartDate] = useState<Date>(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>("");
@@ -91,7 +91,7 @@ const Calendar = () => {
         loadServices();
       }
     }
-  }, [currentWeek, userId, userRole]);
+  }, [currentStartDate, visibleDays, userId, userRole]);
 
   const getAppointmentsForDay = (day: Date) => {
     return appointments.filter(apt => {
@@ -212,8 +212,8 @@ const Calendar = () => {
   const loadAppointments = async () => {
     setLoading(true);
     try {
-      const weekStart = currentWeek;
-      const weekEnd = addDays(currentWeek, 7);
+      const start = currentStartDate;
+      const end = addDays(currentStartDate, visibleDays);
 
       let query = supabase
         .from("appointments")
@@ -223,8 +223,8 @@ const Calendar = () => {
           services(name),
           employees(display_name, profiles(full_name))
         `)
-        .gte("scheduled_at", weekStart.toISOString())
-        .lt("scheduled_at", weekEnd.toISOString())
+        .gte("scheduled_at", start.toISOString())
+        .lt("scheduled_at", end.toISOString())
         .order("scheduled_at");
 
       if (userRole === "employee") {
@@ -507,8 +507,8 @@ const Calendar = () => {
     return colors[hash % colors.length];
   };
 
-  // Always show full week from currentWeek start
-  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(currentWeek, i));
+  // Start from current day and show only forward days
+  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(currentStartDate, i));
   const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 - 20:00
 
   // Calculate optimal number of visible days and slot heights
@@ -518,7 +518,11 @@ const Calendar = () => {
       if (!container) return;
 
       const containerWidth = container.offsetWidth - 48;
-      const minDayWidth = 160;
+      // Compute min day width so the longest employee name fits one line
+      const longestNameChars = employees.reduce((max, e) => Math.max(max, (e.display_name || e.profiles?.full_name || "").length), 0);
+      const approxCharPx = 7; // approximate width per character at small font size
+      const paddingPx = 24; // horizontal paddings
+      const minDayWidth = Math.max(140, Math.min(280, longestNameChars * approxCharPx + paddingPx));
       const timeColumnWidth = 80;
       
       const availableWidth = containerWidth - timeColumnWidth;
@@ -569,7 +573,7 @@ const Calendar = () => {
     updateLayout();
     window.addEventListener('resize', updateLayout);
     return () => window.removeEventListener('resize', updateLayout);
-  }, [appointments, weekDays.length]);
+  }, [appointments, weekDays.length, employees]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -611,18 +615,18 @@ const Calendar = () => {
               <div>
                 <h1 className="text-2xl font-bold">Календар записів</h1>
                 <p className="text-sm text-muted-foreground">
-                  {format(currentWeek, "d MMMM", { locale: uk })} - {format(addDays(currentWeek, 6), "d MMMM yyyy", { locale: uk })}
+                  {format(currentStartDate, "d MMMM", { locale: uk })} - {format(addDays(currentStartDate, Math.max(visibleDays - 1, 0)), "d MMMM yyyy", { locale: uk })}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}>
+              <Button variant="outline" size="sm" onClick={() => setCurrentStartDate(addDays(currentStartDate, -visibleDays))}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setCurrentWeek(startOfWeek(new Date(), { locale: uk }))}>
+              <Button variant="outline" size="sm" onClick={() => setCurrentStartDate(new Date())}>
                 Сьогодні
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}>
+              <Button variant="outline" size="sm" onClick={() => setCurrentStartDate(addDays(currentStartDate, visibleDays))}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
               {userRole === "admin" && (
