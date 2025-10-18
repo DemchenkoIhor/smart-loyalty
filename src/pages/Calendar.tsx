@@ -75,7 +75,6 @@ const Calendar = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollbarWidth, setScrollbarWidth] = useState(0);
-  const [visibleDays, setVisibleDays] = useState(7);
   const [slotHeights, setSlotHeights] = useState<Record<number, number>>({});
 
   useEffect(() => {
@@ -507,24 +506,13 @@ const Calendar = () => {
     return colors[hash % colors.length];
   };
 
-  // Generate week days starting from currentWeek
-  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(currentWeek, i));
+  // Always show full week (7 days)
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeek, i));
   const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 - 20:00
 
-  // Calculate optimal number of visible days and slot heights
+  // Calculate optimal slot heights
   useEffect(() => {
     const updateLayout = () => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      const containerWidth = container.offsetWidth - 48;
-      const minDayWidth = 160;
-      const timeColumnWidth = 80;
-      
-      const availableWidth = containerWidth - timeColumnWidth;
-      const maxDays = Math.max(1, Math.min(7, Math.floor(availableWidth / minDayWidth)));
-      setVisibleDays(maxDays);
-
       // Calculate slot heights based on content requirements
       const newSlotHeights: Record<number, number> = {};
       hours.forEach(hour => {
@@ -547,8 +535,6 @@ const Calendar = () => {
             const maxCols = Math.max(...Object.values(sizeById), 1);
             
             // Calculate required height to fit employee name in one line
-            // Name (10px) + Employee (14px single line) + Service (9px) + Time (8px) + padding (8px) = ~50px minimum
-            // Ensure minimum height of 60px to comfortably fit employee name
             let requiredHeight = 60;
             if (maxCols >= 4) {
               requiredHeight = 100;
@@ -568,7 +554,7 @@ const Calendar = () => {
     updateLayout();
     window.addEventListener('resize', updateLayout);
     return () => window.removeEventListener('resize', updateLayout);
-  }, [appointments, weekDays.length]);
+  }, [appointments]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -772,7 +758,7 @@ const Calendar = () => {
             <div 
               className="grid border-b" 
               style={{ 
-                gridTemplateColumns: `80px repeat(${visibleDays}, 1fr)`,
+                gridTemplateColumns: `80px repeat(7, minmax(140px, 1fr))`,
                 paddingRight: `${scrollbarWidth}px` 
               }}
             >
@@ -801,7 +787,7 @@ const Calendar = () => {
                         key={hour} 
                         className="grid border-b last:border-b-0" 
                         style={{ 
-                          gridTemplateColumns: `80px repeat(${visibleDays}, 1fr)`,
+                          gridTemplateColumns: `80px repeat(7, minmax(140px, 1fr))`,
                           height: `${slotHeight}px`,
                           position: 'absolute',
                           top: `${topOffset}px`,
@@ -821,7 +807,7 @@ const Calendar = () => {
                 </div>
 
                 {/* Appointments overlay */}
-                <div className="pointer-events-none absolute inset-0 grid" style={{ gridTemplateColumns: `80px repeat(${visibleDays}, 1fr)` }}>
+                <div className="pointer-events-none absolute inset-0 grid" style={{ gridTemplateColumns: `80px repeat(7, minmax(140px, 1fr))` }}>
                   <div />
                   {weekDays.map((day, dayIndex) => {
                     const dayAppointments = getAppointmentsForDay(day);
