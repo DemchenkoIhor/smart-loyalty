@@ -520,31 +520,51 @@ const Calendar = () => {
       const container = containerRef.current;
       if (!container) return;
 
-      const containerWidth = container.offsetWidth - 48; // Padding
-      const minDayWidth = 160; // Minimum width per day for readable appointments
+      const containerWidth = container.offsetWidth - 48;
+      const minDayWidth = 160;
       const timeColumnWidth = 80;
       
       const availableWidth = containerWidth - timeColumnWidth;
       const maxDays = Math.max(1, Math.min(7, Math.floor(availableWidth / minDayWidth)));
       setVisibleDays(maxDays);
 
-      // Calculate slot heights based on max overlapping appointments per hour
+      // Calculate slot heights based on content requirements
       const newSlotHeights: Record<number, number> = {};
       hours.forEach(hour => {
-        let maxCols = 1;
+        let maxRequiredHeight = 80; // Base height
+        
         weekDays.forEach(day => {
           const dayAppointments = appointments.filter(apt => {
             const aptDate = parseISO(apt.scheduled_at);
             const aptHour = aptDate.getHours();
-            return isSameDay(aptDate, day) && aptHour === hour;
+            const aptEndMinutes = aptDate.getMinutes() + apt.duration_minutes;
+            const aptEndHour = Math.floor(aptEndMinutes / 60) + aptHour;
+            
+            // Check if appointment overlaps with this hour slot
+            return isSameDay(aptDate, day) && 
+                   ((aptHour === hour) || (aptHour < hour && aptEndHour > hour));
           });
-          const { sizeById } = computeDayLayout(dayAppointments);
-          const maxForDay = Math.max(...Object.values(sizeById), 1);
-          maxCols = Math.max(maxCols, maxForDay);
+          
+          if (dayAppointments.length > 0) {
+            const { sizeById } = computeDayLayout(dayAppointments);
+            const maxCols = Math.max(...Object.values(sizeById), 1);
+            
+            // Calculate required height based on content:
+            // Name (11px) + Employee (10px) + Service (10px) + Time (9px) + padding (6px) = ~46px minimum
+            // If notes exist: + separator (1px) + padding (2px) + 2-3 lines of notes (~27px) = ~76px
+            // Base: 80px for 1 column, 100px for 2-3 columns, 120px for 4+ columns
+            let requiredHeight = 80;
+            if (maxCols >= 4) {
+              requiredHeight = 120;
+            } else if (maxCols >= 2) {
+              requiredHeight = 100;
+            }
+            
+            maxRequiredHeight = Math.max(maxRequiredHeight, requiredHeight);
+          }
         });
-        // Base height 80px, increase for overlapping appointments
-        // Minimum height to show: name (11px) + employee (10px) + service (10px) + time (9px) + padding (~12px) = ~52px
-        newSlotHeights[hour] = Math.max(80, maxCols > 2 ? 100 : 80);
+        
+        newSlotHeights[hour] = maxRequiredHeight;
       });
       setSlotHeights(newSlotHeights);
     };
@@ -840,19 +860,19 @@ const Calendar = () => {
                                   setIsDetailsDialogOpen(true);
                                 }}
                               >
-                                <div className="p-1.5 h-full flex flex-col text-foreground">
+                                <div className="p-1.5 h-full flex flex-col text-foreground overflow-hidden">
                                   <div className="font-semibold text-[11px] leading-tight">{apt.clients.full_name}</div>
                                   <div className="text-[10px] font-medium opacity-90">{employeeName}</div>
                                   <div className="text-[10px] opacity-80">{apt.services.name}</div>
                                   <div className="text-[9px] opacity-70 mt-0.5">{format(parseISO(apt.scheduled_at), "HH:mm")} • {apt.duration_minutes} хв</div>
                                   {apt.clients.notes && height > 50 && (
                                     <div className="mt-1 pt-1 border-t border-foreground/20">
-                                      <div className="text-[9px] opacity-75 line-clamp-2">{apt.clients.notes}</div>
+                                      <div className="text-[9px] opacity-75 line-clamp-3">{apt.clients.notes}</div>
                                     </div>
                                   )}
                                   {apt.admin_notes && height > 75 && (
                                     <div className="mt-1 pt-1 border-t border-foreground/20">
-                                      <div className="text-[9px] opacity-75 italic line-clamp-1">Адмін: {apt.admin_notes}</div>
+                                      <div className="text-[9px] opacity-75 italic line-clamp-2">Адмін: {apt.admin_notes}</div>
                                     </div>
                                   )}
                                 </div>
