@@ -137,20 +137,30 @@ const EmployeeManagement = () => {
     }
   };
 
-  const updateEmployeeBio = async (employeeId: string, bio: string) => {
+  const updateEmployeeProfile = async (employeeId: string, userId: string, fullName: string, bio: string) => {
     try {
-      const { error } = await supabase
+      // Update profile full_name (trigger will sync to employee display_name)
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ full_name: fullName })
+        .eq("id", userId);
+
+      if (profileError) throw profileError;
+
+      // Update employee bio
+      const { error: bioError } = await supabase
         .from("employees")
         .update({ bio })
         .eq("id", employeeId);
 
-      if (error) throw error;
-      toast.success("Біо оновлено");
+      if (bioError) throw bioError;
+
+      toast.success("Профіль оновлено");
       loadEmployees();
       setEditingEmployee(null);
     } catch (error) {
-      console.error("Error updating bio:", error);
-      toast.error("Помилка оновлення біо");
+      console.error("Error updating profile:", error);
+      toast.error("Помилка оновлення профілю");
     }
   };
 
@@ -344,19 +354,51 @@ const EmployeeManagement = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {editingEmployee?.id === employee.id ? (
-                    <div className="space-y-2">
-                      <Label>Біо</Label>
-                      <Textarea
-                        defaultValue={employee.bio || ""}
-                        onBlur={(e) => updateEmployeeBio(employee.id, e.target.value)}
-                        rows={2}
-                      />
-                    </div>
+                {editingEmployee?.id === employee.id ? (
+                    <form 
+                      className="space-y-3"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        const fullName = formData.get("fullName") as string;
+                        const bio = formData.get("bio") as string;
+                        updateEmployeeProfile(employee.id, employee.user_id, fullName, bio);
+                      }}
+                    >
+                      <div>
+                        <Label htmlFor={`fullName-${employee.id}`}>Повне ім'я</Label>
+                        <Input
+                          id={`fullName-${employee.id}`}
+                          name="fullName"
+                          defaultValue={employee.profiles?.full_name || ""}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`bio-${employee.id}`}>Біо</Label>
+                        <Textarea
+                          id={`bio-${employee.id}`}
+                          name="bio"
+                          defaultValue={employee.bio || ""}
+                          rows={2}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="submit" size="sm">Зберегти</Button>
+                        <Button 
+                          type="button" 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setEditingEmployee(null)}
+                        >
+                          Скасувати
+                        </Button>
+                      </div>
+                    </form>
                   ) : (
                     <div>
                       <div className="flex justify-between items-center mb-2">
-                        <Label>Біо</Label>
+                        <Label>Профіль</Label>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -365,9 +407,10 @@ const EmployeeManagement = () => {
                           <Edit className="h-3 w-3" />
                         </Button>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {employee.bio || "Немає опису"}
-                      </p>
+                      <div className="text-sm space-y-1">
+                        <p className="font-medium">{employee.profiles?.full_name || "Без імені"}</p>
+                        <p className="text-muted-foreground">{employee.bio || "Немає опису"}</p>
+                      </div>
                     </div>
                   )}
 
