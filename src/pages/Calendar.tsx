@@ -550,14 +550,14 @@ const Calendar = () => {
             const maxCols = Math.max(...Object.values(sizeById), 1);
             
             // Calculate required height based on content:
-            // Name (11px) + Employee (10px) + Service (10px) + Time (9px) + padding (6px) = ~46px minimum
-            // If notes exist: + separator (1px) + padding (2px) + 2-3 lines of notes (~27px) = ~76px
-            // Base: 80px for 1 column, 100px for 2-3 columns, 120px for 4+ columns
-            let requiredHeight = 80;
+            // Name (10px) + Employee (9px) + Service (9px) + Time (8px) + padding (4px) = ~40px minimum
+            // If notes exist: + separator (1px) + padding (1px) + 2-3 lines of notes (~24px) = ~66px
+            // Base: 90px for 1 column, 110px for 2-3 columns, 130px for 4+ columns
+            let requiredHeight = 90;
             if (maxCols >= 4) {
-              requiredHeight = 120;
+              requiredHeight = 130;
             } else if (maxCols >= 2) {
-              requiredHeight = 100;
+              requiredHeight = 110;
             }
             
             maxRequiredHeight = Math.max(maxRequiredHeight, requiredHeight);
@@ -860,19 +860,19 @@ const Calendar = () => {
                                   setIsDetailsDialogOpen(true);
                                 }}
                               >
-                                <div className="p-1.5 h-full flex flex-col text-foreground overflow-hidden">
-                                  <div className="font-semibold text-[11px] leading-tight">{apt.clients.full_name}</div>
-                                  <div className="text-[10px] font-medium opacity-90">{employeeName}</div>
-                                  <div className="text-[10px] opacity-80">{apt.services.name}</div>
-                                  <div className="text-[9px] opacity-70 mt-0.5">{format(parseISO(apt.scheduled_at), "HH:mm")} • {apt.duration_minutes} хв</div>
-                                  {apt.clients.notes && height > 50 && (
-                                    <div className="mt-1 pt-1 border-t border-foreground/20">
-                                      <div className="text-[9px] opacity-75 line-clamp-3">{apt.clients.notes}</div>
+                                <div className="p-1 h-full flex flex-col text-foreground overflow-hidden">
+                                  <div className="font-semibold text-[10px] leading-tight">{apt.clients.full_name}</div>
+                                  <div className="text-[9px] font-medium opacity-90">{employeeName}</div>
+                                  <div className="text-[9px] opacity-80">{apt.services.name}</div>
+                                  <div className="text-[8px] opacity-70">{format(parseISO(apt.scheduled_at), "HH:mm")} • {apt.duration_minutes} хв</div>
+                                  {apt.clients.notes && height > 40 && (
+                                    <div className="mt-0.5 pt-0.5 border-t border-foreground/20 flex-1 overflow-hidden">
+                                      <div className="text-[8px] opacity-75 line-clamp-3">{apt.clients.notes}</div>
                                     </div>
                                   )}
-                                  {apt.admin_notes && height > 75 && (
-                                    <div className="mt-1 pt-1 border-t border-foreground/20">
-                                      <div className="text-[9px] opacity-75 italic line-clamp-2">Адмін: {apt.admin_notes}</div>
+                                  {apt.admin_notes && height > 65 && (
+                                    <div className="mt-0.5 pt-0.5 border-t border-foreground/20">
+                                      <div className="text-[8px] opacity-75 italic line-clamp-2">Адмін: {apt.admin_notes}</div>
                                     </div>
                                   )}
                                 </div>
