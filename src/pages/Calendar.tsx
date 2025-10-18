@@ -507,8 +507,11 @@ const Calendar = () => {
     return colors[hash % colors.length];
   };
 
-  // Generate week days starting from currentWeek
-  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(currentWeek, i));
+  // Start from today for better future appointment visibility
+  const today = startOfWeek(new Date(), { locale: uk });
+  const isCurrentWeek = currentWeek.getTime() === today.getTime();
+  const startDay = isCurrentWeek ? new Date() : currentWeek;
+  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(startDay, i));
   const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 - 20:00
 
   // Calculate optimal number of visible days and slot heights
@@ -546,14 +549,15 @@ const Calendar = () => {
             const { sizeById } = computeDayLayout(dayAppointments);
             const maxCols = Math.max(...Object.values(sizeById), 1);
             
-            // Calculate required height to fit employee name in one line
-            // Name (10px) + Employee (14px single line) + Service (9px) + Time (8px) + padding (8px) = ~50px minimum
-            // Ensure minimum height of 60px to comfortably fit employee name
-            let requiredHeight = 60;
+            // Calculate required height based on content:
+            // Name (10px) + Employee (9px) + Service (9px) + Time (8px) + padding (4px) = ~40px minimum
+            // If notes exist: + separator (1px) + padding (1px) + 2-3 lines of notes (~24px) = ~66px
+            // Base: 90px for 1 column, 110px for 2-3 columns, 130px for 4+ columns
+            let requiredHeight = 90;
             if (maxCols >= 4) {
-              requiredHeight = 100;
+              requiredHeight = 130;
             } else if (maxCols >= 2) {
-              requiredHeight = 80;
+              requiredHeight = 110;
             }
             
             maxRequiredHeight = Math.max(maxRequiredHeight, requiredHeight);
@@ -857,9 +861,9 @@ const Calendar = () => {
                                 }}
                               >
                                 <div className="p-1 h-full flex flex-col text-foreground overflow-hidden">
-                                  <div className="font-semibold text-[10px] leading-tight truncate">{apt.clients.full_name}</div>
-                                  <div className="text-[11px] font-medium opacity-90 truncate whitespace-nowrap">{employeeName}</div>
-                                  <div className="text-[9px] opacity-80 truncate">{apt.services.name}</div>
+                                  <div className="font-semibold text-[10px] leading-tight">{apt.clients.full_name}</div>
+                                  <div className="text-[9px] font-medium opacity-90">{employeeName}</div>
+                                  <div className="text-[9px] opacity-80">{apt.services.name}</div>
                                   <div className="text-[8px] opacity-70">{format(parseISO(apt.scheduled_at), "HH:mm")} • {apt.duration_minutes} хв</div>
                                   {apt.clients.notes && height > 40 && (
                                     <div className="mt-0.5 pt-0.5 border-t border-foreground/20 flex-1 overflow-hidden">
