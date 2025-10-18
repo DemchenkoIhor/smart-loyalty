@@ -234,6 +234,7 @@ const EmployeeManagement = () => {
         .insert({
           user_id: authData.user.id,
           bio,
+          display_name: fullName,
           is_active: true,
         });
       if (empError) throw empError;
