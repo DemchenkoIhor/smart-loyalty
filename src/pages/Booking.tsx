@@ -237,13 +237,21 @@ const Booking = () => {
     }, 30000);
   };
 
-  const skipTelegramAndComplete = () => {
+  const skipTelegramAndComplete = async () => {
+    // Перевірка наявності email
+    if (!clientEmail || !clientEmail.includes('@')) {
+      toast.error("Для відправки на Email потрібно вказати коректну адресу електронної пошти");
+      return;
+    }
+
     if (telegramCheckInterval) {
       clearInterval(telegramCheckInterval);
       setTelegramCheckInterval(null);
     }
     setTelegramConnecting(false);
-    setStep(5); // Перейти до фінального кроку
+    
+    // Відразу створюємо запис і надсилаємо на email
+    await handleSubmit();
   };
 
   const handleSubmit = async () => {
