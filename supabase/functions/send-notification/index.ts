@@ -225,7 +225,7 @@ async function sendTelegramMessage(chatId: number, text: string): Promise<void> 
 }
 
 async function sendEmail(to: string, subject: string, html: string, phone: string): Promise<void> {
-  const botUsername = 'YOUR_BOT_USERNAME'; // Замініть на ім'я вашого бота
+  const botUsername = 'demchenko_tr43_bot';
   const telegramLink = `https://t.me/${botUsername}?start=phone_${encodeURIComponent(phone)}`;
   
   const htmlWithTelegramLink = html + `

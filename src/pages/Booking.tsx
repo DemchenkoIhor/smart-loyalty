@@ -161,7 +161,7 @@ const Booking = () => {
   }, [selectedEmployee, selectedDate, selectedService, employeeServices]);
 
   const openTelegramBot = () => {
-    const botUsername = 'YOUR_BOT_USERNAME'; // Замініть на ім'я вашого бота
+    const botUsername = 'demchenko_tr43_bot';
     const encodedPhone = encodeURIComponent(clientPhone);
     const deepLink = `https://t.me/${botUsername}?start=phone_${encodedPhone}`;
     
