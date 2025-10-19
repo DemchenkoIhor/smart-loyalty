@@ -8,13 +8,29 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Send, Mail, MessageSquare } from "lucide-react";
+import { ArrowLeft, Send, Mail, MessageSquare, Check, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Client {
   id: string;
   full_name: string;
   phone: string;
   email: string | null;
+  telegram_chat_id: number | null;
+  telegram_username: string | null;
+  preferred_channel: string | null;
+}
+
+interface SentMessage {
+  id: string;
+  sent_at: string;
+  channel: string;
+  delivery_status: string;
+  message_text: string;
+  clients: {
+    full_name: string;
+  };
 }
 
 const Communications = () => {
@@ -22,6 +38,7 @@ const Communications = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [sentMessages, setSentMessages] = useState<SentMessage[]>([]);
 
   useEffect(() => {
     checkAuthAndLoad();
@@ -48,6 +65,7 @@ const Communications = () => {
       }
 
       loadClients();
+      loadSentMessages();
     } catch (error) {
       console.error("Auth error:", error);
       toast.error("Помилка автентифікації");
@@ -72,41 +90,54 @@ const Communications = () => {
     }
   };
 
+  const loadSentMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("sent_messages")
+        .select("id, sent_at, channel, delivery_status, message_text, clients(full_name)")
+        .order("sent_at", { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      setSentMessages(data || []);
+    } catch (error) {
+      console.error("Error loading sent messages:", error);
+    }
+  };
+
   const sendMessage = async (formData: FormData) => {
     setSendingMessage(true);
     try {
       const clientId = formData.get("client") as string;
-      const channel = formData.get("channel") as string;
       const message = formData.get("message") as string;
 
       if (clientId === "all") {
         // Send to all clients
         for (const client of clients) {
-          await supabase
-            .from("sent_messages")
-            .insert({
+          await supabase.functions.invoke('send-notification', {
+            body: {
               client_id: client.id,
-              channel: channel as "email" | "sms",
-              template_id: null,
-              appointment_id: null
-            });
+              message_type: 'custom',
+              custom_message: message
+            }
+          });
         }
-        toast.success(`Повідомлення надіслано всім клієнтам через ${channel}`);
+        toast.success('Повідомлення надіслано всім клієнтам');
       } else {
         // Send to specific client
-        await supabase
-          .from("sent_messages")
-          .insert({
+        await supabase.functions.invoke('send-notification', {
+          body: {
             client_id: clientId,
-            channel: channel as "email" | "sms",
-            template_id: null,
-            appointment_id: null
-          });
-        toast.success(`Повідомлення надіслано через ${channel}`);
+            message_type: 'custom',
+            custom_message: message
+          }
+        });
+        toast.success('Повідомлення надіслано');
       }
 
-      // Reset form
+      // Reset form and reload messages
       (document.querySelector('form') as HTMLFormElement)?.reset();
+      loadSentMessages();
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error("Помилка відправки повідомлення");
@@ -154,46 +185,38 @@ const Communications = () => {
                   e.preventDefault();
                   sendMessage(new FormData(e.currentTarget));
                 }} className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="client">Отримувач</Label>
-                      <Select name="client" required>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Оберіть клієнта" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Всі клієнти</SelectItem>
-                          {clients.map(client => (
-                            <SelectItem key={client.id} value={client.id}>
-                              {client.full_name} ({client.phone})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="channel">Канал</Label>
-                      <Select name="channel" required>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Оберіть канал" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="sms">
-                            <div className="flex items-center gap-2">
-                              <MessageSquare className="h-4 w-4" />
-                              SMS
+                  <div>
+                    <Label htmlFor="client">Отримувач</Label>
+                    <Select name="client" required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Оберіть клієнта" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Всі клієнти</SelectItem>
+                        {clients.map(client => (
+                          <SelectItem key={client.id} value={client.id}>
+                            <div className="flex items-center justify-between gap-2 w-full">
+                              <span>{client.full_name} ({client.phone})</span>
+                              <div className="flex gap-1">
+                                {client.telegram_chat_id && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    <MessageSquare className="h-3 w-3" />
+                                  </Badge>
+                                )}
+                                {client.email && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    <Mail className="h-3 w-3" />
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           </SelectItem>
-                          <SelectItem value="email">
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-4 w-4" />
-                              Email
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Автоматично використовується пріоритетний канал клієнта
+                    </p>
                   </div>
 
                   <div>
@@ -221,15 +244,72 @@ const Communications = () => {
 
             <Card className="shadow-medium">
               <CardHeader>
-                <CardTitle>Шаблони повідомлень</CardTitle>
+                <CardTitle>Історія повідомлень</CardTitle>
                 <CardDescription>
-                  Автоматичні повідомлення (в розробці)
+                  Останні надіслані повідомлення
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Функція автоматичних повідомлень для нагадувань про записи, подяк після візиту та інших сценаріїв буде додана найближчим часом.
-                </p>
+                {sentMessages.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Дата</TableHead>
+                        <TableHead>Клієнт</TableHead>
+                        <TableHead>Канал</TableHead>
+                        <TableHead>Статус</TableHead>
+                        <TableHead>Повідомлення</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sentMessages.map((msg) => (
+                        <TableRow key={msg.id}>
+                          <TableCell className="text-sm">
+                            {new Date(msg.sent_at).toLocaleDateString('uk-UA', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </TableCell>
+                          <TableCell>{msg.clients.full_name}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {msg.channel === 'telegram' ? (
+                                <MessageSquare className="h-3 w-3 mr-1" />
+                              ) : (
+                                <Mail className="h-3 w-3 mr-1" />
+                              )}
+                              {msg.channel}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {msg.delivery_status === 'sent' ? (
+                              <Badge variant="default" className="bg-green-500">
+                                <Check className="h-3 w-3 mr-1" />
+                                Надіслано
+                              </Badge>
+                            ) : msg.delivery_status === 'failed' ? (
+                              <Badge variant="destructive">
+                                <X className="h-3 w-3 mr-1" />
+                                Помилка
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary">Очікує</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate text-sm">
+                            {msg.message_text}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Поки що немає надісланих повідомлень
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>

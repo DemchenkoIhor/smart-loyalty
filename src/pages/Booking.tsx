@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Calendar, Clock, User, ArrowLeft } from "lucide-react";
+import { Calendar, Clock, User, ArrowLeft, MessageSquare, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { uk } from "date-fns/locale";
 
@@ -46,6 +46,8 @@ const Booking = () => {
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [telegramConnecting, setTelegramConnecting] = useState(false);
+  const [telegramCheckInterval, setTelegramCheckInterval] = useState<number | null>(null);
 
   const [busySlots, setBusySlots] = useState<{ start_at: string; end_at: string }[]>([]);
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
@@ -157,6 +159,54 @@ const Booking = () => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEmployee, selectedDate, selectedService, employeeServices]);
+
+  const openTelegramBot = () => {
+    const botUsername = 'YOUR_BOT_USERNAME'; // Замініть на ім'я вашого бота
+    const encodedPhone = encodeURIComponent(clientPhone);
+    const deepLink = `https://t.me/${botUsername}?start=phone_${encodedPhone}`;
+    
+    window.open(deepLink, '_blank');
+    setTelegramConnecting(true);
+    
+    // Починаємо перевірку telegram_chat_id кожні 3 секунди
+    const interval = window.setInterval(async () => {
+      const { data } = await supabase
+        .from('clients')
+        .select('telegram_chat_id')
+        .eq('phone', clientPhone)
+        .maybeSingle();
+      
+      if (data?.telegram_chat_id) {
+        clearInterval(interval);
+        setTelegramCheckInterval(null);
+        toast.success('✅ Telegram успішно підключено!');
+        setTelegramConnecting(false);
+        // Автоматично переходимо до підтвердження
+        setTimeout(() => handleSubmit(), 500);
+      }
+    }, 3000);
+    
+    setTelegramCheckInterval(interval);
+    
+    // Автоматично зупиняємо після 30 секунд
+    setTimeout(() => {
+      if (interval) {
+        clearInterval(interval);
+        setTelegramCheckInterval(null);
+        setTelegramConnecting(false);
+      }
+    }, 30000);
+  };
+
+  const skipTelegramAndComplete = () => {
+    if (telegramCheckInterval) {
+      clearInterval(telegramCheckInterval);
+      setTelegramCheckInterval(null);
+    }
+    setTelegramConnecting(false);
+    setStep(5); // Перейти до фінального кроку
+  };
+
   const handleSubmit = async () => {
     if (!selectedEmployee || !selectedService || !selectedDate || !selectedTime || !clientName || !clientPhone) {
       toast.error("Заповніть всі обов'язкові поля");
@@ -212,6 +262,25 @@ const Booking = () => {
 
       if (appointmentError) throw appointmentError;
 
+      // Відправити notification
+      const { error: notificationError } = await supabase.functions.invoke('send-notification', {
+        body: {
+          client_id: clientId,
+          message_type: 'booking_confirmation',
+          appointment_details: {
+            service: selectedServiceData.services.name,
+            employee: selectedEmployeeData?.display_name || 'Майстер',
+            date: format(new Date(selectedDate), "d MMMM yyyy", { locale: uk }),
+            time: selectedTime,
+            price: selectedServiceData.price
+          }
+        }
+      });
+
+      if (notificationError) {
+        console.error('Notification error:', notificationError);
+      }
+
       toast.success("Запис успішно створено!");
       navigate("/");
     } catch (error: any) {
@@ -245,7 +314,7 @@ const Booking = () => {
           <CardHeader>
             <CardTitle className="text-3xl text-center">Онлайн запис</CardTitle>
             <CardDescription className="text-center">
-              Крок {step} з 4
+              Крок {step} з 5
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -432,11 +501,58 @@ const Booking = () => {
 
                 <Button
                   className="w-full gradient-primary shadow-medium"
-                  disabled={loading}
-                  onClick={handleSubmit}
+                  onClick={() => setStep(5)}
                 >
-                  {loading ? "Створення запису..." : "Підтвердити запис"}
+                  Далі
                 </Button>
+              </div>
+            )}
+
+            {step === 5 && (
+              <div className="space-y-4">
+                <div className="text-center space-y-4">
+                  <MessageSquare className="w-16 h-16 mx-auto text-primary" />
+                  <h3 className="text-xl font-semibold">Отримуйте повідомлення в Telegram</h3>
+                  <p className="text-muted-foreground">
+                    Натисніть кнопку нижче щоб активувати швидкі повідомлення в Telegram.
+                    Це дозволить вам отримувати миттєві нагадування про записи!
+                  </p>
+                  
+                  {telegramConnecting ? (
+                    <div className="space-y-4">
+                      <div className="animate-pulse">
+                        <div className="h-2 bg-primary/20 rounded-full w-full mb-2"></div>
+                        <p className="text-sm text-muted-foreground">
+                          Очікуємо підключення... Натисніть "Start" у боті Telegram
+                        </p>
+                      </div>
+                      <Button 
+                        variant="ghost"
+                        onClick={skipTelegramAndComplete}
+                      >
+                        Пропустити
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <Button 
+                        className="gradient-primary"
+                        onClick={openTelegramBot}
+                      >
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        Підключити Telegram
+                      </Button>
+                      
+                      <Button 
+                        variant="ghost"
+                        onClick={skipTelegramAndComplete}
+                      >
+                        <Mail className="mr-2 h-4 w-4" />
+                        Пропустити (отримувати Email)
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </CardContent>
