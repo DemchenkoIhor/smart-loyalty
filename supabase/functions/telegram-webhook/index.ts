@@ -51,18 +51,27 @@ serve(async (req) => {
       const parts = text.split(' ');
       
       if (parts.length > 1 && parts[1].startsWith('phone_')) {
-        // Витягуємо номер телефону з deep link
-        const encodedPhone = parts[1].replace('phone_', '');
-        const phone = decodeURIComponent(encodedPhone);
-        
-        console.log('Processing registration for phone:', phone);
+        const raw = parts[1].slice('phone_'.length);
+        const decoded = decodeURIComponent(raw);
+        const normalize = (input: string) => '+' + (input || '').replace(/\D/g, '');
+        const candidates = Array.from(new Set([
+          decoded,
+          decoded.replace(/\s+/g, ''),
+          decoded.replace(/\D/g, ''),
+          normalize(decoded),
+          normalize(decoded.replace(/\D/g, '')),
+        ]));
+        console.log('Processing registration for phone candidates:', candidates);
 
-        // Знаходимо клієнта за номером телефону
-        const { data: client, error: clientError } = await supabase
+        // Знаходимо клієнта за номером телефону (з урахуванням різних форматів)
+        const { data: clients, error: clientError } = await supabase
           .from('clients')
           .select('*')
-          .eq('phone', phone)
-          .maybeSingle();
+          .in('phone', candidates)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const client = clients?.[0];
 
         if (clientError) {
           console.error('Error finding client:', clientError);

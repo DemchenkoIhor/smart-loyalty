@@ -33,6 +33,11 @@ interface EmployeeService {
   services: Service;
 }
 
+const normalizePhone = (input: string) => {
+  const digits = (input || '').replace(/\D/g, '');
+  return digits ? `+${digits}` : '';
+};
+
 const Booking = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -162,8 +167,13 @@ const Booking = () => {
 
   const openTelegramBot = () => {
     const botUsername = 'demchenko_tr43_bot';
-    const encodedPhone = encodeURIComponent(clientPhone);
-    const deepLink = `https://t.me/${botUsername}?start=phone_${encodedPhone}`;
+    const normalized = normalizePhone(clientPhone);
+    if (!normalized) {
+      toast.error("Введіть коректний номер телефону");
+      return;
+    }
+    const payload = `phone_${normalized.replace(/^\+/, '')}`;
+    const deepLink = `https://t.me/${botUsername}?start=${payload}`;
     
     window.open(deepLink, '_blank');
     setTelegramConnecting(true);
@@ -173,7 +183,7 @@ const Booking = () => {
       const { data } = await supabase
         .from('clients')
         .select('telegram_chat_id')
-        .eq('phone', clientPhone)
+        .eq('phone', normalized)
         .maybeSingle();
       
       if (data?.telegram_chat_id) {
@@ -208,7 +218,8 @@ const Booking = () => {
   };
 
   const handleSubmit = async () => {
-    if (!selectedEmployee || !selectedService || !selectedDate || !selectedTime || !clientName || !clientPhone) {
+    const normalizedPhone = normalizePhone(clientPhone);
+    if (!selectedEmployee || !selectedService || !selectedDate || !selectedTime || !clientName || !normalizedPhone) {
       toast.error("Заповніть всі обов'язкові поля");
       return;
     }
@@ -221,7 +232,7 @@ const Booking = () => {
       const { data: existingClient } = await supabase
         .from("clients")
         .select("id")
-        .eq("phone", clientPhone)
+        .eq("phone", normalizedPhone)
         .maybeSingle();
 
       if (existingClient) {
@@ -231,7 +242,7 @@ const Booking = () => {
           .from("clients")
           .insert({
             full_name: clientName,
-            phone: clientPhone,
+            phone: normalizedPhone,
             email: clientEmail || null,
           })
           .select()
