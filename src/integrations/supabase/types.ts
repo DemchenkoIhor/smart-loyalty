@@ -95,6 +95,9 @@ export type Database = {
           id: string
           notes: string | null
           phone: string
+          preferred_channel: string | null
+          telegram_chat_id: number | null
+          telegram_username: string | null
           updated_at: string | null
         }
         Insert: {
@@ -104,6 +107,9 @@ export type Database = {
           id?: string
           notes?: string | null
           phone: string
+          preferred_channel?: string | null
+          telegram_chat_id?: number | null
+          telegram_username?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -113,6 +119,9 @@ export type Database = {
           id?: string
           notes?: string | null
           phone?: string
+          preferred_channel?: string | null
+          telegram_chat_id?: number | null
+          telegram_username?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -269,7 +278,10 @@ export type Database = {
           channel: Database["public"]["Enums"]["communication_channel"]
           clicked_at: string | null
           client_id: string
+          delivery_status: string | null
+          error_message: string | null
           id: string
+          message_text: string | null
           opened_at: string | null
           sent_at: string | null
           template_id: string | null
@@ -280,7 +292,10 @@ export type Database = {
           channel: Database["public"]["Enums"]["communication_channel"]
           clicked_at?: string | null
           client_id: string
+          delivery_status?: string | null
+          error_message?: string | null
           id?: string
+          message_text?: string | null
           opened_at?: string | null
           sent_at?: string | null
           template_id?: string | null
@@ -291,7 +306,10 @@ export type Database = {
           channel?: Database["public"]["Enums"]["communication_channel"]
           clicked_at?: string | null
           client_id?: string
+          delivery_status?: string | null
+          error_message?: string | null
           id?: string
+          message_text?: string | null
           opened_at?: string | null
           sent_at?: string | null
           template_id?: string | null
@@ -386,7 +404,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "employee"
       appointment_status: "pending" | "confirmed" | "completed" | "cancelled"
-      communication_channel: "email" | "sms" | "messenger"
+      communication_channel: "email" | "sms" | "messenger" | "telegram"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -516,7 +534,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "employee"],
       appointment_status: ["pending", "confirmed", "completed", "cancelled"],
-      communication_channel: ["email", "sms", "messenger"],
+      communication_channel: ["email", "sms", "messenger", "telegram"],
     },
   },
 } as const
