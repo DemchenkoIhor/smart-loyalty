@@ -20,6 +20,7 @@ interface NotificationRequest {
   message_type: 'booking_confirmation' | 'booking_reminder' | 'post_visit_thanks' | 'custom';
   custom_message?: string;
   appointment_id?: string;
+  force_channel?: 'email' | 'telegram';
   appointment_details?: {
     service: string;
     employee: string;
@@ -58,8 +59,30 @@ serve(async (req) => {
     let deliveryStatus = 'pending';
     let errorMessage = null;
 
-    // Спочатку пробуємо Telegram (пріоритетний канал)
-    if (client.telegram_chat_id && client.preferred_channel === 'telegram') {
+    // Якщо force_channel вказано, використовуємо тільки його
+    if (body.force_channel === 'email' && client.email) {
+      try {
+        await sendEmail(client.email, messageText.emailSubject, messageText.emailHtml, client.phone);
+        channel = 'email';
+        deliveryStatus = 'sent';
+        console.log('Message sent via Email (forced) to:', client.email);
+      } catch (error: any) {
+        deliveryStatus = 'failed';
+        errorMessage = error?.message || String(error);
+        console.error('Email error:', error);
+      }
+    } else if (body.force_channel === 'telegram' && client.telegram_chat_id) {
+      try {
+        await sendTelegramMessage(client.telegram_chat_id, messageText.telegram);
+        channel = 'telegram';
+        deliveryStatus = 'sent';
+        console.log('Message sent via Telegram (forced) to:', client.telegram_chat_id);
+      } catch (error: any) {
+        deliveryStatus = 'failed';
+        errorMessage = error?.message || String(error);
+        console.error('Telegram error:', error);
+      }
+    } else if (client.telegram_chat_id && client.preferred_channel === 'telegram') {
       try {
         await sendTelegramMessage(client.telegram_chat_id, messageText.telegram);
         channel = 'telegram';

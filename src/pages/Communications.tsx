@@ -110,6 +110,7 @@ const Communications = () => {
     try {
       const clientId = formData.get("client") as string;
       const message = formData.get("message") as string;
+      const forceChannel = formData.get("force_channel") as string | null;
 
       if (clientId === "all") {
         // Send to all clients
@@ -118,7 +119,8 @@ const Communications = () => {
             body: {
               client_id: client.id,
               message_type: 'custom',
-              custom_message: message
+              custom_message: message,
+              force_channel: forceChannel === 'auto' ? undefined : forceChannel
             }
           });
         }
@@ -129,7 +131,8 @@ const Communications = () => {
           body: {
             client_id: clientId,
             message_type: 'custom',
-            custom_message: message
+            custom_message: message,
+            force_channel: forceChannel === 'auto' ? undefined : forceChannel
           }
         });
         toast.success('Повідомлення надіслано');
@@ -216,6 +219,23 @@ const Communications = () => {
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
                       Автоматично використовується пріоритетний канал клієнта
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="force_channel">Канал відправки (тестування)</Label>
+                    <Select name="force_channel" defaultValue="auto">
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Автоматично (за налаштуваннями клієнта)</SelectItem>
+                        <SelectItem value="email">Примусово Email (для тестування)</SelectItem>
+                        <SelectItem value="telegram">Примусово Telegram (для тестування)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Для тестування email виберіть "Примусово Email"
                     </p>
                   </div>
 
