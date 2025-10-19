@@ -12,6 +12,7 @@ import Clients from "./pages/Clients";
 import Employees from "./pages/Employees";
 import EmployeeManagement from "./pages/EmployeeManagement";
 import Communications from "./pages/Communications";
+import AutoMessages from "./pages/AutoMessages";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
 
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/employees" element={<Employees />} />
           <Route path="/employees/manage" element={<EmployeeManagement />} />
           <Route path="/communications" element={<Communications />} />
+          <Route path="/auto-messages" element={<AutoMessages />} />
           <Route path="/analytics" element={<Analytics />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

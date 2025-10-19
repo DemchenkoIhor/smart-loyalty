@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Calendar, Users, TrendingUp, LogOut, MessageSquare } from "lucide-react";
+import { Calendar, Users, TrendingUp, LogOut, MessageSquare, BellRing } from "lucide-react";
 
 interface UserRole {
   role: string;
@@ -219,6 +219,14 @@ const Dashboard = () => {
                 >
                   <MessageSquare className="mr-2 h-6 w-6" />
                   Комунікації
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-20 text-lg hover:shadow-medium transition-all"
+                  onClick={() => navigate("/auto-messages")}
+                >
+                  <BellRing className="mr-2 h-6 w-6" />
+                  Автоповідомлення
                 </Button>
                 <Button
                   variant="outline"
