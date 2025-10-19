@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, ChevronLeft, ChevronRight } from "lucide-react";
-import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, parseISO } from "date-fns";
+import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, parseISO, startOfDay } from "date-fns";
 import { uk } from "date-fns/locale";
 
 interface Appointment {
@@ -212,8 +212,8 @@ const Calendar = () => {
   const loadAppointments = async () => {
     setLoading(true);
     try {
-      const start = currentStartDate;
-      const end = addDays(currentStartDate, visibleDays);
+      const start = startOfDay(currentStartDate);
+      const end = startOfDay(addDays(currentStartDate, visibleDays));
 
       let query = supabase
         .from("appointments")
