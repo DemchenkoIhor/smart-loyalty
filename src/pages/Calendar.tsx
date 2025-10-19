@@ -95,8 +95,8 @@ const Calendar = () => {
 
   const getAppointmentsForDay = (day: Date) => {
     return appointments.filter(apt => {
-      const aptDate = new Date(apt.scheduled_at);
-      return aptDate.toDateString() === day.toDateString();
+      const aptDate = parseISO(apt.scheduled_at);
+      return isSameDay(aptDate, day);
     });
   };
 
