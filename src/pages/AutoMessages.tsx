@@ -166,8 +166,11 @@ const AutoMessages = () => {
   const getTriggerLabel = (trigger: string) => {
     const triggers: Record<string, string> = {
       booking_confirmation: "Підтвердження запису",
-      booking_reminder: "Нагадування про запис",
+      booking_cancelled: "Скасування запису",
+      booking_reminder: "Нагадування за 1 день до візиту",
+      booking_reminder_1h: "Нагадування за 1 годину до візиту",
       post_visit_thanks: "Подяка після візиту",
+      post_visit_rebooking: "Пропозиція повторного запису (через 14 днів)",
       custom: "Власне",
     };
     return triggers[trigger] || trigger;
@@ -228,8 +231,11 @@ const AutoMessages = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="booking_confirmation">Підтвердження запису</SelectItem>
-                      <SelectItem value="booking_reminder">Нагадування про запис (за 1 день)</SelectItem>
+                      <SelectItem value="booking_cancelled">Скасування запису</SelectItem>
+                      <SelectItem value="booking_reminder">Нагадування за 1 день до візиту</SelectItem>
+                      <SelectItem value="booking_reminder_1h">Нагадування за 1 годину до візиту</SelectItem>
                       <SelectItem value="post_visit_thanks">Подяка після візиту</SelectItem>
+                      <SelectItem value="post_visit_rebooking">Пропозиція повторного запису (через 14 днів)</SelectItem>
                       <SelectItem value="custom">Власна умова</SelectItem>
                     </SelectContent>
                   </Select>
