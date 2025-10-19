@@ -165,13 +165,42 @@ const Booking = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEmployee, selectedDate, selectedService, employeeServices]);
 
-  const openTelegramBot = () => {
+  const openTelegramBot = async () => {
     const botUsername = 'demchenko_tr43_bot';
     const normalized = normalizePhone(clientPhone);
     if (!normalized) {
       toast.error("Введіть коректний номер телефону");
       return;
     }
+
+    // Гарантуємо, що клієнт існує в БД до відкриття Telegram (щоб вебхук міг його знайти)
+    try {
+      const { data: existing } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('phone', normalized)
+        .maybeSingle();
+
+      if (!existing) {
+        const { error: insertErr } = await supabase
+          .from('clients')
+          .insert({
+            full_name: clientName || 'Клієнт',
+            phone: normalized,
+            email: clientEmail || null,
+          });
+        if (insertErr) {
+          console.error('Error creating client before Telegram:', insertErr);
+          toast.error('Не вдалося підготувати дані клієнта');
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Pre-create client error:', e);
+      toast.error('Сталася помилка при підготовці даних');
+      return;
+    }
+
     const payload = `phone_${normalized.replace(/^\+/, '')}`;
     const deepLink = `https://t.me/${botUsername}?start=${payload}`;
     
