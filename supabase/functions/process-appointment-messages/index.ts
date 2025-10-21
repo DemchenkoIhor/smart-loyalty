@@ -99,6 +99,9 @@ serve(async (req) => {
       timeZone: 'Europe/Kyiv'
     });
 
+    // Генеруємо лінк на запис
+    const appointmentLink = `https://nfwqjkbpvfmvpxvzkbnt.lovable.app/appointment/${appointment.id}`;
+
     // Змінні для заміни в темплейті
     const variables = {
       '{client_name}': appointmentData.client?.full_name || 'Клієнт',
@@ -107,6 +110,7 @@ serve(async (req) => {
       '{date}': date,
       '{time}': time,
       '{price}': `${appointmentData.price} ₴`,
+      '{appointment_link}': appointmentLink,
     };
 
     // Відправляємо повідомлення для кожного каналу
