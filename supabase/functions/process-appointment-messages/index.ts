@@ -85,16 +85,18 @@ serve(async (req) => {
       });
     }
 
-    // Форматуємо дату та час
+    // Форматуємо дату та час у часовому поясі України
     const scheduledAt = new Date(appointmentData.scheduled_at);
     const date = scheduledAt.toLocaleDateString('uk-UA', { 
       day: 'numeric', 
       month: 'long', 
-      year: 'numeric' 
+      year: 'numeric',
+      timeZone: 'Europe/Kyiv'
     });
     const time = scheduledAt.toLocaleTimeString('uk-UA', { 
       hour: '2-digit', 
-      minute: '2-digit' 
+      minute: '2-digit',
+      timeZone: 'Europe/Kyiv'
     });
 
     // Змінні для заміни в темплейті
