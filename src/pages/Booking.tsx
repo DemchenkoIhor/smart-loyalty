@@ -310,25 +310,7 @@ const Booking = () => {
 
       if (appointmentError) throw appointmentError;
 
-      // Відправити notification
-      const { error: notificationError } = await supabase.functions.invoke('send-notification', {
-        body: {
-          client_id: clientId,
-          message_type: 'booking_confirmation',
-          appointment_details: {
-            service: selectedServiceData.services.name,
-            employee: selectedEmployeeData?.display_name || 'Майстер',
-            date: format(new Date(selectedDate), "d MMMM yyyy", { locale: uk }),
-            time: selectedTime,
-            price: selectedServiceData.price
-          }
-        }
-      });
-
-      if (notificationError) {
-        console.error('Notification error:', notificationError);
-      }
-
+      // Повідомлення надсилаються автоматично через тригер БД
       toast.success("Запис успішно створено!");
       navigate("/");
     } catch (error: any) {
