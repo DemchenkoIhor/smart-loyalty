@@ -10,7 +10,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { ArrowLeft, User, Plus, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, User, Plus, Edit, Trash2, CalendarOff, X } from "lucide-react";
+import { format } from "date-fns";
+import { uk } from "date-fns/locale";
 
 interface Service {
   id: string;
@@ -38,6 +40,13 @@ interface Employee {
   employee_services: EmployeeService[];
 }
 
+interface DayOff {
+  id: string;
+  employee_id: string;
+  date_off: string;
+  reason: string | null;
+}
+
 const EmployeeManagement = () => {
   const navigate = useNavigate();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -46,6 +55,9 @@ const EmployeeManagement = () => {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
   const [isCreateEmployeeOpen, setIsCreateEmployeeOpen] = useState(false);
+  const [isDaysOffOpen, setIsDaysOffOpen] = useState(false);
+  const [daysOff, setDaysOff] = useState<DayOff[]>([]);
+  const [newDayOff, setNewDayOff] = useState({ date: "", reason: "" });
 
   useEffect(() => {
     checkAuthAndLoad();
@@ -190,6 +202,63 @@ const EmployeeManagement = () => {
     } catch (error) {
       console.error("Error removing service:", error);
       toast.error("Помилка видалення послуги");
+    }
+  };
+
+  const loadDaysOff = async (employeeId: string) => {
+    const { data, error } = await supabase
+      .from("employee_days_off")
+      .select("*")
+      .eq("employee_id", employeeId)
+      .gte("date_off", format(new Date(), "yyyy-MM-dd"))
+      .order("date_off");
+    
+    if (error) {
+      console.error("Error loading days off:", error);
+      return;
+    }
+    setDaysOff(data || []);
+  };
+
+  const addDayOff = async (employeeId: string) => {
+    if (!newDayOff.date) {
+      toast.error("Оберіть дату");
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from("employee_days_off")
+        .insert({
+          employee_id: employeeId,
+          date_off: newDayOff.date,
+          reason: newDayOff.reason || null,
+        });
+
+      if (error) throw error;
+      toast.success("Вихідний додано");
+      setNewDayOff({ date: "", reason: "" });
+      loadDaysOff(employeeId);
+    } catch (error: any) {
+      if (error.code === "23505") {
+        toast.error("Цей день вже додано");
+      } else {
+        toast.error("Помилка додавання");
+      }
+    }
+  };
+
+  const removeDayOff = async (dayOffId: string, employeeId: string) => {
+    try {
+      const { error } = await supabase
+        .from("employee_days_off")
+        .delete()
+        .eq("id", dayOffId);
+
+      if (error) throw error;
+      toast.success("Вихідний видалено");
+      loadDaysOff(employeeId);
+    } catch (error) {
+      toast.error("Помилка видалення");
     }
   };
 
@@ -442,23 +511,104 @@ const EmployeeManagement = () => {
                               variant="ghost"
                               onClick={() => removeServiceFromEmployee(empService.id)}
                             >
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Немає послуг</p>
+                          )}
+                        </div>
+
+                        {/* Days Off Section */}
+                        <div>
+                          <div className="flex justify-between items-center mb-2">
+                            <Label>Вихідні дні</Label>
+                            <Dialog 
+                              open={isDaysOffOpen && editingEmployee?.id === employee.id} 
+                              onOpenChange={(open) => {
+                                setIsDaysOffOpen(open);
+                                if (open) {
+                                  setEditingEmployee(employee);
+                                  loadDaysOff(employee.id);
+                                }
+                              }}
+                            >
+                              <DialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingEmployee(employee)}
+                                >
+                                  <CalendarOff className="h-3 w-3 mr-1" />
+                                  Керувати
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>Вихідні дні</DialogTitle>
+                                  <DialogDescription>
+                                    {employee.display_name || employee.profiles?.full_name}
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div className="flex gap-2">
+                                    <Input
+                                      type="date"
+                                      min={format(new Date(), "yyyy-MM-dd")}
+                                      value={newDayOff.date}
+                                      onChange={(e) => setNewDayOff({ ...newDayOff, date: e.target.value })}
+                                    />
+                                    <Input
+                                      placeholder="Причина (опціонально)"
+                                      value={newDayOff.reason}
+                                      onChange={(e) => setNewDayOff({ ...newDayOff, reason: e.target.value })}
+                                    />
+                                    <Button onClick={() => addDayOff(employee.id)}>
+                                      <Plus className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                  <div className="max-h-60 overflow-y-auto space-y-2">
+                                    {daysOff.length > 0 ? (
+                                      daysOff.map((day) => (
+                                        <div key={day.id} className="flex justify-between items-center p-2 bg-muted rounded">
+                                          <div>
+                                            <p className="font-medium text-sm">
+                                              {format(new Date(day.date_off), "d MMMM yyyy", { locale: uk })}
+                                            </p>
+                                            {day.reason && (
+                                              <p className="text-xs text-muted-foreground">{day.reason}</p>
+                                            )}
+                                          </div>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => removeDayOff(day.id, employee.id)}
+                                          >
+                                            <X className="h-3 w-3 text-destructive" />
+                                          </Button>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground text-center py-4">
+                                        Немає запланованих вихідних
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Немає послуг</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
-    </div>
-  );
-};
+        );
+      };
 
 export default EmployeeManagement;

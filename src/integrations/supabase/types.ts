@@ -126,6 +126,38 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_days_off: {
+        Row: {
+          created_at: string | null
+          date_off: string
+          employee_id: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date_off: string
+          employee_id: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date_off?: string
+          employee_id?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_days_off_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_services: {
         Row: {
           duration_minutes: number
