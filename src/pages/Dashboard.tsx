@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Calendar, Users, TrendingUp, LogOut, MessageSquare, BellRing } from "lucide-react";
+import { Calendar, Users, LogOut, MessageSquare, BellRing, TrendingUp } from "lucide-react";
 
 interface UserRole {
   role: string;
@@ -17,8 +17,7 @@ const Dashboard = () => {
   const [userName, setUserName] = useState("");
   const [stats, setStats] = useState({
     todayAppointments: 0,
-    totalClients: 0,
-    repeatRate: 0
+    totalClients: 0
   });
 
   useEffect(() => {
@@ -52,8 +51,7 @@ const Dashboard = () => {
 
       setStats({
         todayAppointments: todayCount || 0,
-        totalClients: clientsCount || 0,
-        repeatRate: 0 // TODO: Calculate repeat rate
+        totalClients: clientsCount || 0
       });
     } catch (error) {
       console.error("Error loading stats:", error);
@@ -158,7 +156,7 @@ const Dashboard = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
           <StatCard
             title="Записи сьогодні"
             value={stats.todayAppointments.toString()}
@@ -170,12 +168,6 @@ const Dashboard = () => {
             value={stats.totalClients.toString()}
             icon={<Users className="h-8 w-8" />}
             description="У базі даних"
-          />
-          <StatCard
-            title="Конверсія"
-            value={`${stats.repeatRate}%`}
-            icon={<TrendingUp className="h-8 w-8" />}
-            description="Повторних візитів"
           />
         </div>
 
