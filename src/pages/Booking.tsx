@@ -56,6 +56,7 @@ const Booking = () => {
 
   const [busySlots, setBusySlots] = useState<{ start_at: string; end_at: string }[]>([]);
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+  const [daysOff, setDaysOff] = useState<string[]>([]);
   useEffect(() => {
     loadEmployees();
   }, []);
@@ -63,8 +64,21 @@ const Booking = () => {
   useEffect(() => {
     if (selectedEmployee) {
       loadEmployeeServices(selectedEmployee);
+      loadDaysOff(selectedEmployee);
     }
   }, [selectedEmployee]);
+
+  const loadDaysOff = async (employeeId: string) => {
+    const { data, error } = await supabase
+      .from("employee_days_off")
+      .select("date_off")
+      .eq("employee_id", employeeId)
+      .gte("date_off", format(new Date(), "yyyy-MM-dd"));
+    
+    if (!error && data) {
+      setDaysOff(data.map(d => d.date_off));
+    }
+  };
 
   const loadEmployees = async () => {
     const { data, error } = await supabase
@@ -446,8 +460,21 @@ const Booking = () => {
                     type="date"
                     min={format(new Date(), "yyyy-MM-dd")}
                     value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (daysOff.includes(val)) {
+                        toast.error("Майстер не працює в цей день");
+                        return;
+                      }
+                      setSelectedDate(val);
+                    }}
                   />
+                  {daysOff.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Недоступні дати: {daysOff.slice(0, 5).map(d => format(new Date(d), "d.MM")).join(", ")}
+                      {daysOff.length > 5 && ` та ще ${daysOff.length - 5}`}
+                    </p>
+                  )}
                 </div>
 
                 {selectedDate && (
