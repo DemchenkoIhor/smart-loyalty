@@ -285,22 +285,34 @@ const Calendar = () => {
   };
 
   const searchClientByPhone = async (phone: string) => {
-    if (!phone || phone.length < 10) return;
+    if (!phone || phone.length < 9) return;
     
+    // Нормалізуємо номер: прибираємо все крім цифр
+    const normalizedPhone = phone.replace(/\D/g, '');
+    
+    // Пошук за різними форматами
     const { data, error } = await supabase
       .from("clients")
       .select("id, full_name, phone, email, notes")
-      .eq("phone", phone)
+      .or(`phone.ilike.%${normalizedPhone},phone.ilike.+${normalizedPhone},phone.ilike.%${normalizedPhone.slice(-10)}`)
+      .limit(1)
       .maybeSingle();
 
     if (data) {
-      setNewAppointment({ ...newAppointment, client_id: data.id });
+      setNewAppointment(prev => ({ ...prev, client_id: data.id }));
       setIsNewClient(false);
       setClientNotes(data.notes || "");
+      // Заповнюємо дані клієнта з БД
+      setNewClientData({ 
+        full_name: data.full_name || "", 
+        email: data.email || "" 
+      });
     } else {
       setIsNewClient(true);
-      setNewAppointment({ ...newAppointment, client_id: "" });
+      setNewAppointment(prev => ({ ...prev, client_id: "" }));
       setClientNotes("");
+      // Очищаємо дані для нового клієнта
+      setNewClientData({ full_name: "", email: "" });
     }
   };
 
@@ -680,33 +692,42 @@ const Calendar = () => {
                           type="tel"
                           placeholder="+380..."
                           value={clientPhone}
-                          onChange={(e) => setClientPhone(e.target.value)}
+                          onChange={(e) => {
+                            setClientPhone(e.target.value);
+                            // Автопошук при введенні достатньої кількості цифр
+                            if (e.target.value.replace(/\D/g, '').length >= 10) {
+                              searchClientByPhone(e.target.value);
+                            }
+                          }}
                           onBlur={(e) => searchClientByPhone(e.target.value)}
                         />
+                        {!isNewClient && newAppointment.client_id && (
+                          <p className="text-xs text-success mt-1">✓ Клієнт знайдений в базі</p>
+                        )}
                       </div>
-                      {isNewClient && (
-                        <>
-                          <div>
-                            <Label htmlFor="client_name">Ім'я клієнта *</Label>
-                            <Input
-                              id="client_name"
-                              value={newClientData.full_name}
-                              onChange={(e) => setNewClientData({...newClientData, full_name: e.target.value})}
-                              placeholder="Введіть ім'я"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="client_email">Email (опціонально)</Label>
-                            <Input
-                              id="client_email"
-                              type="email"
-                              value={newClientData.email}
-                              onChange={(e) => setNewClientData({...newClientData, email: e.target.value})}
-                              placeholder="email@example.com"
-                            />
-                          </div>
-                        </>
-                      )}
+                      <div>
+                        <Label htmlFor="client_name">Ім'я клієнта {isNewClient && "*"}</Label>
+                        <Input
+                          id="client_name"
+                          value={newClientData.full_name}
+                          onChange={(e) => isNewClient && setNewClientData({...newClientData, full_name: e.target.value})}
+                          placeholder={isNewClient ? "Введіть ім'я" : ""}
+                          disabled={!isNewClient && !!newAppointment.client_id}
+                          className={!isNewClient && newAppointment.client_id ? "bg-muted" : ""}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="client_email">Email (опціонально)</Label>
+                        <Input
+                          id="client_email"
+                          type="email"
+                          value={newClientData.email}
+                          onChange={(e) => isNewClient && setNewClientData({...newClientData, email: e.target.value})}
+                          placeholder={isNewClient ? "email@example.com" : ""}
+                          disabled={!isNewClient && !!newAppointment.client_id}
+                          className={!isNewClient && newAppointment.client_id ? "bg-muted" : ""}
+                        />
+                      </div>
                       <div>
                         <Label htmlFor="client_notes">Коментар про клієнта</Label>
                         <Textarea
